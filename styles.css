@@ -455,6 +455,12 @@ inside each day.
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
+	/* Belt and braces: the tile must fill its grid track, because `aspect-ratio`
+	   derives the height from the width. In one report it computed to 30x30 inside
+	   a 130.8px track — a 30px width won over the track. Nothing in this stylesheet
+	   sets a width, so an app- or theme-level button rule was supplying one; stating
+	   it here means the layout no longer depends on whatever that rule is. */
+	width: 100%;
 	aspect-ratio: 1 / 1;
 	gap: 2px;
 	min-width: 0;
