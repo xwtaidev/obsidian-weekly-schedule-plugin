@@ -33,10 +33,38 @@ export function isoWeekNumber(date: Moment): number {
 	return Math.ceil(dayOfYear / 7);
 }
 
-/** Stable file-name stem for a week, e.g. `2026-W12`. */
+/**
+ * The Monday starting the ISO week that contains `date`. Deriving the week from
+ * its own Monday (rather than pairing a calendar year with a week number) is
+ * what keeps weeks around new year attributed to the correct ISO year.
+ */
+function weekStartOf(date: Moment): Moment {
+	return isoWeekStart(isoYearOf(date), isoWeekNumber(date));
+}
+
+/**
+ * The ISO year a week belongs to, taken from its Monday. 2025-12-29 is week 1 of
+ * ISO year 2026, so this is deliberately not the calendar year of that Monday.
+ */
+function isoYearOfWeek(monday: Moment): number {
+	return isoWeekStart(isoYearOf(monday), isoWeekNumber(monday)).add(3, 'days').year();
+}
+
+/** The ISO year the given date's week belongs to: the year of that week's Monday. */
+export function isoYearOf(date: Moment): number {
+	// The Thursday of the week decides which year that week belongs to.
+	const thursday = date.clone().add(3 - ((date.day() + 6) % 7), 'days');
+	return thursday.year();
+}
+
+/**
+ * Stable file-name stem for a week, e.g. `2026-W12`. Normalised through the
+ * week's Monday, so every date inside one week maps to the same file — including
+ * the days either side of new year.
+ */
 export function weekKey(date: Moment): string {
-	const monday = date.clone().startOf('isoWeek');
-	return `${monday.format('GGGG')}-W${String(isoWeekNumber(monday)).padStart(2, '0')}`;
+	const monday = weekStartOf(date);
+	return `${isoYearOfWeek(monday)}-W${String(isoWeekNumber(monday)).padStart(2, '0')}`;
 }
 
 export function weekFilePath(folder: string, date: Moment): string {
@@ -61,4 +89,52 @@ export function formatWeekLabel(date: Moment): string {
 export function weekDays(date: Moment, weekStartsOn: number): Moment[] {
 	const first = startOfWeek(date, weekStartsOn);
 	return Array.from({ length: 7 }, (_, index) => first.clone().add(index, 'days'));
+}
+
+const DAY_MS = 86400000;
+
+const toUtc = (date: Moment): number =>
+	Date.UTC(date.year(), date.month(), date.date());
+
+const fromUtc = (ms: number): Moment => {
+	const date = new Date(ms);
+	return moment([date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()]);
+};
+
+/**
+ * Monday of a given ISO week, found by the textbook definition rather than
+ * moment's locale machinery: 4 January is always in week 1, and the Thursday of
+ * a week decides which year that week belongs to.
+ */
+export function isoWeekStart(isoYear: number, isoWeek: number): Moment {
+	const jan4 = Date.UTC(isoYear, 0, 4);
+	// getUTCDay(): Sunday is 0, so shift to make Monday the first day.
+	const offsetToMonday = (new Date(jan4).getUTCDay() + 6) % 7;
+	const week1Monday = jan4 - offsetToMonday * DAY_MS;
+	return fromUtc(week1Monday + (isoWeek - 1) * 7 * DAY_MS);
+}
+
+/**
+ * 52 or 53: a year has 53 ISO weeks exactly when its own week 53 starts seven
+ * days before week 1 of the next year.
+ */
+export function isoWeeksInYear(isoYear: number): number {
+	const week53Monday = toUtc(isoWeekStart(isoYear, 53));
+	const nextYearMonday = toUtc(isoWeekStart(isoYear + 1, 1));
+	return week53Monday + 7 * DAY_MS === nextYearMonday ? 53 : 52;
+}
+
+/** Every ISO week of a year, in order, for the year overview. */
+export function isoWeeksOfYear(isoYear: number): { week: number; start: Moment }[] {
+	const total = isoWeeksInYear(isoYear);
+	return Array.from({ length: total }, (_, index) => ({
+		week: index + 1,
+		start: isoWeekStart(isoYear, index + 1),
+	}));
+}
+
+/** Compact one-week range for a tile, e.g. `3/16 – 3/22`. */
+export function formatWeekRange(start: Moment): string {
+	const end = start.clone().add(6, 'days');
+	return `${start.format('M/D')} – ${end.format('M/D')}`;
 }

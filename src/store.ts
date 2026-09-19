@@ -12,6 +12,33 @@ interface CacheEntry {
 	raw: string;
 }
 
+export interface WeekStats {
+	total: number;
+	done: number;
+	/** Rounded percentage of completed tasks, or null when the week is empty. */
+	percent: number | null;
+}
+
+export function countTasks(schedule: WeekSchedule): WeekStats {
+	let total = 0;
+	let done = 0;
+	for (const day of schedule.days) {
+		for (const quadrant of day.quadrants) {
+			for (const task of quadrant.tasks) {
+				total += 1;
+				if (task.done) {
+					done += 1;
+				}
+			}
+		}
+	}
+	return {
+		total,
+		done,
+		percent: total === 0 ? null : Math.round((done / total) * 100),
+	};
+}
+
 /**
  * Loads and persists one board per week, backed by a Markdown file in the vault.
  *
@@ -38,6 +65,18 @@ export class ScheduleStore {
 		const schedule = parseSchedule(content, weekStart, path);
 		this.cache.set(path, { schedule, raw: content });
 		return schedule;
+	}
+
+	/**
+	 * Task counts for one week, for the year overview.
+	 *
+	 * Reuses the loaded board when one is open, and otherwise reads only this
+	 * week's file — a week with no file is reported as empty without any read,
+	 * so a year of tiles costs as many reads as there are weeks actually used.
+	 */
+	async loadWeekStats(weekStart: string, path: string): Promise<WeekStats> {
+		const schedule = await this.load(weekStart, path);
+		return countTasks(schedule);
 	}
 
 	/** Queues a debounced write of a schedule that is already in memory. */

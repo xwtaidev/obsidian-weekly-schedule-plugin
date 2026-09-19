@@ -1,5 +1,5 @@
-import { Plugin } from 'obsidian';
-import { VIEW_TYPE_WEEKLY_SCHEDULE } from './constants';
+import { Plugin, moment } from 'obsidian';
+import { VIEW_TYPE_WEEKLY_SCHEDULE, VIEW_TYPE_WEEKLY_SCHEDULE_YEAR } from './constants';
 import {
 	DEFAULT_SETTINGS,
 	WeeklyScheduleSettings,
@@ -7,7 +7,10 @@ import {
 } from './settings';
 import { ScheduleStore } from './store';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
+import { WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
+import { weekFilePath } from './utils/date';
 import type { TAbstractFile } from 'obsidian';
+import type { Moment } from './utils/date';
 
 export default class WeeklySchedulePlugin extends Plugin {
 	settings!: WeeklyScheduleSettings;
@@ -22,6 +25,10 @@ export default class WeeklySchedulePlugin extends Plugin {
 			VIEW_TYPE_WEEKLY_SCHEDULE,
 			(leaf) => new WeeklyScheduleView(leaf, this),
 		);
+		this.registerView(
+			VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
+			(leaf) => new WeeklyScheduleYearView(leaf, this),
+		);
 
 		this.addRibbonIcon('calendar-days', 'Open weekly schedule', () => {
 			void this.activateView();
@@ -31,6 +38,12 @@ export default class WeeklySchedulePlugin extends Plugin {
 			id: 'open-board',
 			name: 'Open weekly board',
 			callback: () => void this.activateView(),
+		});
+
+		this.addCommand({
+			id: 'open-year-overview',
+			name: 'Open year overview',
+			callback: () => void this.activateYearView(),
 		});
 
 		this.addCommand({
@@ -63,6 +76,7 @@ export default class WeeklySchedulePlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('delete', (file: TAbstractFile) => {
 				void this.viewOf()?.handleFileDeleted(file.path);
+				void this.yearViewOf()?.handleFileChange(file.path);
 			}),
 		);
 
@@ -95,9 +109,56 @@ export default class WeeklySchedulePlugin extends Plugin {
 		});
 	}
 
-	/** Applies changed settings to any open board. */
+	/** Opens the year overview, or focuses it when it is already open. */
+	async activateYearView(focus = true): Promise<void> {
+		const existing = this.yearViewOf();
+		if (existing) {
+			if (focus) {
+				this.app.workspace.setActiveLeaf(existing.leaf, { focus: true });
+			}
+			await existing.syncToCurrentWeek();
+			return;
+		}
+
+		const leaf = this.app.workspace.getLeaf('tab');
+		await leaf.setViewState({
+			type: VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
+			active: focus,
+		});
+	}
+
+	/** Switches the board to the week starting at `weekStart` and reveals it. */
+	async openWeek(weekStart: string): Promise<void> {
+		const view = this.viewOf();
+		if (view) {
+			await view.setWeekStart(weekStart);
+			this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
+			return;
+		}
+
+		await this.activateView();
+		await this.viewOf()?.setWeekStart(weekStart);
+	}
+
+	/** Vault path of the file backing the week that starts at `date`. */
+	pathForWeek(date: Moment): string {
+		return weekFilePath(this.settings.folder, date);
+	}
+
+	/** Path currently shown by the board, or null when no board is open. */
+	get activeBoardPath(): string | null {
+		const view = this.viewOf();
+		return view ? weekFilePath(this.settings.folder, this.momentOf(view.currentWeekStart)) : null;
+	}
+
+	private momentOf(weekStart: string): Moment {
+		return moment(weekStart, 'YYYY-MM-DD').startOf('day');
+	}
+
+	/** Applies changed settings to any open board or year overview. */
 	async handleSettingsChange(): Promise<void> {
 		await this.viewOf()?.refresh();
+		await this.yearViewOf()?.refresh();
 	}
 
 	private async navigateBy(weeks: number): Promise<void> {
@@ -128,13 +189,26 @@ export default class WeeklySchedulePlugin extends Plugin {
 		return null;
 	}
 
+	private yearViewOf(): WeeklyScheduleYearView | null {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_WEEKLY_SCHEDULE_YEAR)) {
+			const view = leaf.view;
+			if (view instanceof WeeklyScheduleYearView) {
+				return view;
+			}
+		}
+		return null;
+	}
+
 	private async handleFileChange(path: string): Promise<void> {
 		const view = this.viewOf();
-		if (view) {
-			await view.handleFileChange(path);
+		const yearView = this.yearViewOf();
+		if (!view && !yearView) {
+			this.store.forget(path);
 			return;
 		}
-		this.store.forget(path);
+
+		await view?.handleFileChange(path);
+		await yearView?.handleFileChange(path);
 	}
 
 	async loadSettings() {

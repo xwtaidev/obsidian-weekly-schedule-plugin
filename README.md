@@ -26,6 +26,23 @@ Open it from the ribbon calendar icon, the **Open weekly board** command, or
 - The toolbar moves between weeks, returns to **本周**, toggles completed tasks,
   and opens the week's Markdown file.
 
+## Jumping to a week
+
+Stepping with `‹` `›` is fine for a week or two, but not for reaching a distant
+one. **Open year overview** (`weekly-schedule:open-year-overview`) shows the whole
+year: one tile per ISO week, 13 per row, each with its week number, date range and
+completion rate.
+
+- Select a tile to open that week in the board.
+- `←` `→` `↑` `↓` move between tiles, `Enter` opens the selected one.
+- `‹` `›` in that view change the ISO year, so weeks on either side of new year
+  stay with the year they belong to.
+- A tile marked with the accent border is the week the board is showing; the one
+  with the accent week number is the current week.
+
+The year view is a separate pane, so it can sit beside the board and stay open
+while you work.
+
 ## How tasks are stored
 
 One Markdown file per week, in the folder set in settings (default
@@ -68,7 +85,9 @@ src/
   constants.ts            # View type, quadrants, days, defaults
   types.ts                # Data model
   ui/
-    weekly-schedule-view.ts  # The board view
+    weekly-schedule-view.ts       # The board view
+    weekly-schedule-year-view.ts  # Year overview, one tile per ISO week
+    inline-editor.ts              # Inline plain-text editing for task rows
   utils/
     date.ts               # Week arithmetic and file naming
     helpers.ts            # Small shared helpers

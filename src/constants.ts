@@ -2,6 +2,9 @@ import type { Day, DayId, Quadrant, QuadrantDefinition, QuadrantId } from './typ
 
 export const VIEW_TYPE_WEEKLY_SCHEDULE = 'weekly-schedule-view';
 
+/** Year-at-a-glance view: one tile per ISO week. */
+export const VIEW_TYPE_WEEKLY_SCHEDULE_YEAR = 'weekly-schedule-year-view';
+
 /** Folder (vault-relative) that schedule files are written to by default. */
 export const DEFAULT_FOLDER = 'weekly-schedule';
 

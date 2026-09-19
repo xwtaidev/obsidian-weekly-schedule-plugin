@@ -118,6 +118,11 @@ export class WeeklyScheduleView extends ItemView {
 		return this.pathFor(this.weekStart);
 	}
 
+	/** Monday (`YYYY-MM-DD`) of the week currently displayed. */
+	get currentWeekStart(): string {
+		return this.weekStart;
+	}
+
 	/** Handles a vault `modify` event for a schedule file. */
 	async handleFileChange(path: string): Promise<void> {
 		if (path !== this.activePath) {

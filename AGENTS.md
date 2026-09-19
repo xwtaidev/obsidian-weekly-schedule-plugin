@@ -9,6 +9,7 @@
 - Current state: the weekly board is implemented.
     - `src/main.ts` — lifecycle, view registration, commands, vault events (keep it this small).
     - `src/ui/weekly-schedule-view.ts` — the board view: 3 days per row (3 + 3 + 1), 4 priority cells per day.
+    - `src/ui/weekly-schedule-year-view.ts` — year overview: one tile per ISO week for jumping to distant weeks.
     - `src/store.ts` — per-week Markdown files, caching, debounced writes, external-edit reloads.
     - `src/markdown.ts` — Markdown <-> board conversion (standard `- [ ]` checkbox syntax).
     - `src/utils/date.ts` — week arithmetic, ISO week file names.
