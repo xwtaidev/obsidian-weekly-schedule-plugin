@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-weekly-schedule-plugin",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Plan and review your week inside Obsidian.",
 	"main": "main.js",
 	"type": "module",
