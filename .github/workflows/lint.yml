@@ -25,3 +25,8 @@ jobs:
             - run: npm ci
             - run: npm run build --if-present
             - run: npm run lint
+            # Catches the manifest problems the directory's automated review
+            # rejects over. Each one costs a release to fix, so fail here instead.
+            # Runs after the build because it also checks for main.js, which the
+            # build produces and git does not track.
+            - run: npm run check:manifest

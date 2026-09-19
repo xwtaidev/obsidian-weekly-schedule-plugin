@@ -1,9 +1,9 @@
 {
 	"id": "weekly-schedule",
 	"name": "Weekly Schedule",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"minAppVersion": "1.5.7",
-	"description": "Plan and review your week inside Obsidian.",
+	"description": "Plan each week in four priority quadrants, stored as plain Markdown you can edit by hand.",
 	"author": "xwtaidev",
 	"isDesktopOnly": false
 }
