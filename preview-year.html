@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>年度总览 — 方案 C 密度调优</title>
+<style>
+	/* Obsidian 主题变量，用于贴近真实观感。 */
+	[data-theme="dark"] {
+		--background-primary: #1e1e1e;
+		--background-secondary: #161616;
+		--background-modifier-border: #333333;
+		--background-modifier-border-hover: #4a4a4a;
+		--background-modifier-hover: rgb(255 255 255 / 5.5%);
+		--text-normal: #dcddde;
+		--text-muted: #b3b3b3;
+		--text-faint: #7a7a7a;
+		--interactive-accent: #7f6df2;
+
+		/* 热力色阶 = 强调色按实测透明度叠在面板底色上。
+		   6 档而非 5 档：档位跨过"深字与白字都不达标"的中间带时，
+		   必须用两档跨过去，否则中间那档文字对比度不合格。 */
+		--heat-0: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+		--heat-1: color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+		--heat-2: color-mix(in srgb, var(--interactive-accent) 36%, transparent);
+		--heat-3: color-mix(in srgb, var(--interactive-accent) 52%, transparent);
+		--heat-4: color-mix(in srgb, var(--interactive-accent) 66%, transparent);
+		--heat-5: color-mix(in srgb, var(--interactive-accent) 84%, transparent);
+		--heat-ink: var(--text-normal);
+		--heat-ink-strong: #fff;
+	}
+	[data-theme="light"] {
+		--background-primary: #ffffff;
+		--background-secondary: #f5f6f8;
+		--background-modifier-border: #e0e0e0;
+		--background-modifier-border-hover: #c9c9c9;
+		--background-modifier-hover: rgb(0 0 0 / 4.5%);
+		--text-normal: #2e3338;
+		--text-muted: #6b6b6b;
+		--text-faint: #9a9a9a;
+		--interactive-accent: #5b4fd6;
+
+		/* 浅色底用比交互强调色更深一档的紫做填充：交互色在浅底上载不住白字。 */
+		--heat-fill: #4a3fc4;
+		--heat-0: color-mix(in srgb, var(--heat-fill) 10%, transparent);
+		--heat-1: color-mix(in srgb, var(--heat-fill) 22%, transparent);
+		--heat-2: color-mix(in srgb, var(--heat-fill) 34%, transparent);
+		--heat-3: color-mix(in srgb, var(--heat-fill) 46%, transparent);
+		--heat-4: color-mix(in srgb, var(--heat-fill) 82%, transparent);
+		--heat-5: color-mix(in srgb, var(--heat-fill) 92%, transparent);
+		--heat-ink: var(--text-normal);
+		--heat-ink-strong: #fff;
+	}
+
+	* { box-sizing: border-box; }
+	body {
+		margin: 0; padding: 20px 22px 40px;
+		background: var(--background-secondary); color: var(--text-normal);
+		font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif; font-size: 14px;
+	}
+
+	.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+	.page-head h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+	.page-head p { margin: 5px 0 0; font-size: 12px; color: var(--text-muted); max-width: 66ch; line-height: 1.5; }
+	.switch { display: flex; gap: 6px; }
+	.switch button {
+		padding: 4px 11px; font: inherit; font-size: 12px;
+		border: 1px solid var(--background-modifier-border); border-radius: 6px;
+		background: transparent; color: var(--text-muted); cursor: pointer;
+	}
+	.switch button[aria-pressed="true"] { border-color: var(--interactive-accent); color: var(--text-normal); }
+
+	.legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; font-size: 12px; color: var(--text-muted); }
+	.legend-item { display: flex; align-items: center; gap: 6px; }
+	.swatch { width: 14px; height: 14px; border-radius: 3px; }
+	.swatch.empty { background: transparent; border: 1px dashed var(--background-modifier-border-hover); }
+	.swatch.future { background: transparent; border: 1px solid var(--background-modifier-border); }
+
+	.variant { margin-bottom: 26px; }
+	.variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+	.variant-name { font-size: 13px; font-weight: 600; }
+	.variant-note { font-size: 12px; color: var(--text-muted); }
+	.variant-note b { color: var(--text-normal); font-weight: 600; }
+
+	.pane { background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 8px; overflow: hidden; }
+
+	.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--background-modifier-border); }
+	.bar-left, .bar-right { display: flex; align-items: center; gap: 4px; }
+	.bar-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; padding: 0 8px; }
+	.icon-btn, .text-btn {
+		display: inline-flex; align-items: center; justify-content: center;
+		height: 26px; min-width: 26px; padding: 0 7px; border: 0; border-radius: 6px;
+		background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer;
+	}
+	.icon-btn:hover, .text-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+	.foot { padding: 6px 16px 13px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+	.foot b { color: var(--text-normal); }
+
+	/* ---------- 热力网格 ---------- */
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+		gap: var(--gap);
+		padding: var(--pad);
+	}
+
+	.tile {
+		display: flex; flex-direction: column; justify-content: space-between;
+		aspect-ratio: 1 / 1;              /* 正方形：色块面积均匀，热力更稳 */
+		min-height: 0; min-width: 0;
+		padding: var(--tile-pad);
+		border: 0; border-radius: 6px;
+		background: var(--heat-0);
+		color: var(--heat-ink);
+		text-align: start;
+		cursor: pointer;
+		transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+	.tile:hover { transform: scale(1.03); }
+	.tile:active { transform: scale(0.99); }
+
+	/* 无待办与未来周不填色：它们没有完成度可表达。虚线=无待办，实线=未来。 */
+	.tile.is-empty { background: transparent; border: 1px dashed var(--background-modifier-border); }
+	.tile.is-future { background: transparent; border: 1px solid var(--background-modifier-border); }
+	.tile.is-empty .t-range, .tile.is-future .t-range,
+	.tile.is-empty .t-mark, .tile.is-future .t-mark { color: var(--text-muted); }
+	.tile.is-empty .t-mark, .tile.is-future .t-mark { opacity: 0.7; }
+
+	.tile.is-open { box-shadow: 0 0 0 2px var(--interactive-accent); }
+	.tile.is-current .t-week { text-decoration: underline; text-underline-offset: 3px; }
+
+	.t-week { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+	.t-range { font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.t-rate { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; align-self: flex-start; line-height: 1.1; }
+	.t-mark { font-size: 15px; line-height: 1.1; align-self: flex-start; }
+
+	/* 最高两档换成白字：这两档的底色上常规字色实测不足 4.5:1。 */
+	.tile[data-heat="4"], .tile[data-heat="5"] { color: var(--heat-ink-strong); }
+
+	/* 一档也读得出来：0% 档仅比底色略深，靠边框不存在时容易丢失，这里给它一条淡边 */
+	.tile[data-heat="0"]:not(.is-empty):not(.is-future) { box-shadow: inset 0 0 0 1px var(--background-modifier-border); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+	<div>
+		<h1>年度总览 · 方案 C（热力图）密度调优</h1>
+		<p>四个版本只有「每行几个 / 间距多大」不同，格子是 1:1 正方形，颜色深浅表示完成度（6 档）。最上面是当前实现的 13 列版作参照。<br>
+		色阶已按对比度实测校准：每档文字（含日期范围）在深浅两个主题下均 ≥ 4.5:1，档与档之间的明度差也在可分辨范围内。</p>
+	</div>
+	<div class="switch">
+		<button id="btn-dark" aria-pressed="true">深色</button>
+		<button id="btn-light" aria-pressed="false">浅色</button>
+	</div>
+</div>
+
+<div class="legend">
+	<span class="legend-item">完成度 <span class="swatch" style="background:var(--heat-0)"></span>
+		<span class="swatch" style="background:var(--heat-1)"></span>
+		<span class="swatch" style="background:var(--heat-2)"></span>
+		<span class="swatch" style="background:var(--heat-3)"></span>
+		<span class="swatch" style="background:var(--heat-4)"></span>
+		<span class="swatch" style="background:var(--heat-5)"></span> 低 → 高</span>
+	<span class="legend-item"><span class="swatch empty"></span>无待办</span>
+	<span class="legend-item"><span class="swatch future"></span>未来</span>
+</div>
+
+
+<section class="variant">
+	<div class="variant-head">
+		<span class="variant-name">参考 · 当前实现（13 列 / 间距 6px）</span>
+		<span class="variant-note">就是你觉得太密的那版，放在一起便于对比。</span>
+	</div>
+	<div class="pane">
+		<div class="bar">
+			<div class="bar-left"><button class="icon-btn">‹</button><span class="bar-title">2026 年</span><button class="icon-btn">›</button></div>
+			<div class="bar-right"><button class="text-btn">本年</button></div>
+		</div>
+		<div class="grid" id="grid0" style="--cols:13; --gap:6px; --pad:12px 16px 6px; --tile-pad:7px 8px"></div>
+		<div class="foot">已结束 <b>11</b> 周 · 共 66 项 · 完成 <b>39%</b>（26/66）</div>
+	</div>
+</section>
+
+<section class="variant">
+	<div class="variant-head">
+		<span class="variant-name">版本 1 · 10 列 / 间距 10px</span>
+		<span class="variant-note">6 行，格子约 <b>131×131</b>。松紧居中。</span>
+	</div>
+	<div class="pane">
+		<div class="bar">
+			<div class="bar-left"><button class="icon-btn">‹</button><span class="bar-title">2026 年</span><button class="icon-btn">›</button></div>
+			<div class="bar-right"><button class="text-btn">本年</button></div>
+		</div>
+		<div class="grid" id="grid1" style="--cols:10; --gap:10px; --pad:14px 16px 6px; --tile-pad:9px 10px"></div>
+		<div class="foot">已结束 <b>11</b> 周 · 共 66 项 · 完成 <b>39%</b>（26/66）</div>
+	</div>
+</section>
+
+<section class="variant">
+	<div class="variant-head">
+		<span class="variant-name">版本 2 · 9 列 / 间距 12px</span>
+		<span class="variant-note">6 行，格子约 <b>145×145</b>。最松，宽面板下色块最有存在感。</span>
+	</div>
+	<div class="pane">
+		<div class="bar">
+			<div class="bar-left"><button class="icon-btn">‹</button><span class="bar-title">2026 年</span><button class="icon-btn">›</button></div>
+			<div class="bar-right"><button class="text-btn">本年</button></div>
+		</div>
+		<div class="grid" id="grid2" style="--cols:9; --gap:12px; --pad:16px 18px 6px; --tile-pad:11px 12px"></div>
+		<div class="foot">已结束 <b>11</b> 周 · 共 66 项 · 完成 <b>39%</b>（26/66）</div>
+	</div>
+</section>
+
+<section class="variant">
+	<div class="variant-head">
+		<span class="variant-name">版本 3 · 11 列 / 间距 8px</span>
+		<span class="variant-note">5 行，格子约 <b>120×120</b>。比现在的 13 列松，全年更紧凑。</span>
+	</div>
+	<div class="pane">
+		<div class="bar">
+			<div class="bar-left"><button class="icon-btn">‹</button><span class="bar-title">2026 年</span><button class="icon-btn">›</button></div>
+			<div class="bar-right"><button class="text-btn">本年</button></div>
+		</div>
+		<div class="grid" id="grid3" style="--cols:11; --gap:8px; --pad:12px 16px 6px; --tile-pad:8px 9px"></div>
+		<div class="foot">已结束 <b>11</b> 周 · 共 66 项 · 完成 <b>39%</b>（26/66）</div>
+	</div>
+</section>
+<section class="variant">
+	<div class="variant-head">
+		<span class="variant-name">版本 4 · 12 列 / 间距 8px</span>
+		<span class="variant-note">5 行，格子约 <b>105×105</b>（1400 宽面板）。比 13 列松一点，但仍保持 5 行。</span>
+	</div>
+	<div class="pane">
+		<div class="bar">
+			<div class="bar-left"><button class="icon-btn">‹</button><span class="bar-title">2026 年</span><button class="icon-btn">›</button></div>
+			<div class="bar-right"><button class="text-btn">本年</button></div>
+		</div>
+		<div class="grid" id="grid4" style="--cols:12; --gap:8px; --pad:12px 16px 6px; --tile-pad:8px 9px"></div>
+		<div class="foot">已结束 <b>11</b> 周 · 共 66 项 · 完成 <b>39%</b>（26/66）</div>
+	</div>
+</section>
+
+
+<script>
+// 2026 年第 1 周从 2025-12-29 开始，全年 53 周。
+const weeks = [];
+let cursor = Date.UTC(2025, 11, 29);
+const fmt = (d) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+for (let i = 1; i <= 53; i += 1) {
+	const end = new Date(cursor + 6 * 86400000);
+	weeks.push({ week: i, range: `${fmt(new Date(cursor))} – ${fmt(end)}` });
+	cursor += 7 * 86400000;
+}
+
+// 示例数据：前段有任务、中间留空、后段基本没写（用来检验空周与未来周的区分）。
+const data = { 1: [3, 1], 3: [7, 1], 4: [4, 4], 5: [9, 6], 6: [6, 3], 7: [5, 0], 11: [5, 4], 12: [6, 1], 18: [11, 8], 22: [6, 3], 29: [8, 6], 31: [10, 6], 40: [4, 0], 47: [6, 1], 52: [6, 2] };
+const CURRENT = 12, OPEN = 12;
+const stats = (w) => {
+	const d = data[w];
+	return d ? { total: d[0], done: d[1], percent: Math.round((d[1] / d[0]) * 100) } : { total: 0, done: 0, percent: null };
+};
+
+const tier = (percent) => (percent === null ? -1 : Math.min(5, Math.round(percent / 16.67)));
+
+const html = weeks.map((w) => {
+	const s = stats(w.week);
+	const isFuture = w.week > CURRENT;
+	const cls = ['tile'];
+	if (s.total === 0) cls.push('is-empty');
+	else if (isFuture) cls.push('is-future');
+	if (w.week === OPEN) cls.push('is-open');
+	if (w.week === CURRENT) cls.push('is-current');
+	const t = tier(s.percent);
+	// 只有"已结束且有任务"的周才填色：未来周没有完成度可言，不该染色。
+	const filled = t >= 0 && !isFuture;
+	const bg = filled ? ` style="background:var(--heat-${t})"` : '';
+	const last = s.total === 0 ? '<div class="t-mark">—</div>' : `<div class="t-rate">${s.percent}%</div>`;
+	return `<div class="${cls.join(' ')}" data-heat="${filled ? t : -1}"${bg}>` +
+		`<div><div class="t-week">W${w.week}</div><div class="t-range">${w.range}</div></div>${last}</div>`;
+}).join('');
+
+for (const id of ['grid0', 'grid1', 'grid2', 'grid3', 'grid4']) document.getElementById(id).innerHTML = html;
+
+for (const [id, theme] of [['btn-dark', 'dark'], ['btn-light', 'light']]) {
+	document.getElementById(id).addEventListener('click', () => {
+		document.documentElement.dataset.theme = theme;
+		for (const other of ['btn-dark', 'btn-light']) {
+			document.getElementById(other).setAttribute('aria-pressed', String(other === id));
+		}
+	});
+}
+</script>
+</body>
+</html>

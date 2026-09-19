@@ -11,6 +11,11 @@ muted colour per priority — no shadows and no nested card borders. Each day
 shows its date and how many tasks are still open. Hovering a task reveals its
 reorder and delete controls.
 
+Both views size themselves from the pane they are in rather than from the window,
+because an Obsidian pane is often a sidebar or half a split. The board keeps three
+days per row and gives up columns on a narrow pane; the year overview fits up to
+10 tiles per row the same way.
+
 ## Using the board
 
 Open it from the ribbon calendar icon, the **Open weekly board** command, or
@@ -37,11 +42,13 @@ completion rate.
 - `←` `→` `↑` `↓` move between tiles, `Enter` opens the selected one.
 - `‹` `›` in that view change the ISO year, so weeks on either side of new year
   stay with the year they belong to.
-- A tile with an accent border is the week the board is showing; the one with an
-  accent week number is the current week. Completed weeks carry the accent bar,
-  weeks still to come stay neutral, and empty weeks show a dash.
-- The column count follows the pane: 13 across a wide pane, fewer in a narrow
-  one, so the date range on a tile is never clipped.
+- Fill depth shows the completion rate, in six steps. Finished weeks are filled;
+  weeks still to come are not, since they have no completion to show, and weeks
+  with no tasks show a dash. A tile with an accent border is the week the board
+  is showing; an accent week number marks the current week.
+- The column count follows the pane: 10 across a wide pane and fewer in a narrow
+  one, but never below 5, so the date range on a tile is never clipped and a year
+  never turns into a long scroll.
 
 The year view is a separate pane, so it can sit beside the board and stay open
 while you work.

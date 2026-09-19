@@ -9,7 +9,7 @@ import {
 	weekDays,
 	weekFilePath,
 } from '../utils/date';
-import { createTaskId } from '../utils/helpers';
+import { createTaskId, fitColumns } from '../utils/helpers';
 import { placeCaretAtEnd, registerInlineEditor, sleep } from './inline-editor';
 import type { Moment } from '../utils/date';
 import type { WorkspaceLeaf } from 'obsidian';
@@ -17,6 +17,20 @@ import type WeeklySchedulePlugin from '../main';
 import type { Day, Quadrant, Task, WeekSchedule } from '../types';
 
 export const VIEW_ICON = 'calendar-days';
+
+/**
+ * Layout targets for the day grid.
+ *
+ * Three days per row is the intended shape and therefore the ceiling. A day
+ * narrower than MIN_DAY_WIDTH squeezes four priority cells into a strip too
+ * tight to read, so the grid gives up columns instead.
+ */
+const MAX_COLUMNS = 3;
+const MIN_DAY_WIDTH = 232;
+/** Column gap, matching --ws-gap-column in styles.css. */
+const GRID_GAP = 32;
+/** Grid padding (36px) plus the scrollbar Obsidian may keep on the pane. */
+const PANE_SLACK = 62;
 
 /** Persisted with the workspace, so the open week survives an app restart. */
 interface ScheduleViewState extends Record<string, unknown> {
@@ -36,6 +50,8 @@ export class WeeklyScheduleView extends ItemView {
 
 	private toolbarEl: HTMLElement | null = null;
 	private boardEl: HTMLElement | null = null;
+	/** Column count the grid was last laid out with. */
+	private columns = MAX_COLUMNS;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -81,6 +97,13 @@ export class WeeklyScheduleView extends ItemView {
 		// Inline editing commits on blur, so a slow poll keeps the in-memory
 		// board (and therefore the next write) close to what is on screen.
 		this.registerInterval(window.setInterval(() => this.syncFocusedEditor(), 1000));
+
+		// Size the grid from the pane rather than the window: a pane is often a
+		// sidebar or half a split, so viewport breakpoints would be wrong.
+		const observer = new ResizeObserver(() => this.updateColumns());
+		observer.observe(this.contentEl);
+		this.register(() => observer.disconnect());
+
 		await this.render();
 	}
 
@@ -211,6 +234,36 @@ export class WeeklyScheduleView extends ItemView {
 		this.renderToolbar();
 		this.boardEl = this.contentEl.createDiv({ cls: 'weekly-schedule-board' });
 		schedule.days.forEach((day, index) => this.renderDay(day, index));
+
+		// Now that the grid exists, fit it to the pane.
+		this.updateColumns();
+	}
+
+	/**
+	 * Fits the day columns to the pane.
+	 *
+	 * Three per row is the intended shape, so that is the ceiling. On a narrow
+	 * pane the columns give way instead, which also holds a day wide enough for
+	 * its task text to read.
+	 */
+	private updateColumns(): void {
+		const width = this.contentEl.clientWidth;
+		if (width === 0) {
+			return;
+		}
+
+		const columns = fitColumns(
+			width - 36 - PANE_SLACK,
+			MIN_DAY_WIDTH,
+			MAX_COLUMNS,
+			GRID_GAP + 22,
+			this.schedule?.days.length ?? 7,
+		);
+		if (columns === this.columns) {
+			return;
+		}
+		this.columns = columns;
+		this.contentEl.style.setProperty('--ws-columns', String(columns));
 	}
 
 	private renderToolbar(): void {

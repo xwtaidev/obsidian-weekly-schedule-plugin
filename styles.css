@@ -24,6 +24,9 @@ inside each day.
 
 	--ws-gap-column: 32px;
 	--ws-gap-row: 48px;
+	/* Fitted to the pane by the view; the declaration lives here, not on the
+	   grid, because an inline value on the container cannot override it there. */
+	--ws-columns: 3;
 
 	padding: 0;
 	overflow: auto;
@@ -138,7 +141,7 @@ inside each day.
    and the remaining space is left empty. */
 .weekly-schedule-board {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(var(--ws-columns), minmax(0, 1fr));
 	column-gap: var(--ws-gap-column);
 	row-gap: var(--ws-gap-row);
 	align-items: start;
@@ -412,13 +415,35 @@ inside each day.
    it as an inline style on the container, and a declaration here would win over
    an inherited value. */
 .weekly-schedule-year-container {
-	--ws-year-columns: 13;
+	--ws-year-columns: 10;
+
+	/* Heat ramp: completion is shown by fill depth. Six steps rather than five,
+	   because the ramp crosses a band where neither dark nor white text clears
+	   4.5:1 — two steps are needed to cross it without an unreadable tier. */
+	--ws-heat-0: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+	--ws-heat-1: color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	--ws-heat-2: color-mix(in srgb, var(--interactive-accent) 34%, transparent);
+	--ws-heat-3: color-mix(in srgb, var(--interactive-accent) 46%, transparent);
+	--ws-heat-4: color-mix(in srgb, var(--interactive-accent) 82%, transparent);
+	--ws-heat-5: color-mix(in srgb, var(--interactive-accent) 92%, transparent);
+	--ws-heat-ink-strong: #fff;
+}
+
+/* The light theme's accent is too pale to carry white text at full fill, so its
+   top tiers use a deeper shade of the same hue. */
+.theme-light .weekly-schedule-year-container {
+	--ws-heat-0: color-mix(in srgb, #4a3fc4 10%, transparent);
+	--ws-heat-1: color-mix(in srgb, #4a3fc4 22%, transparent);
+	--ws-heat-2: color-mix(in srgb, #4a3fc4 34%, transparent);
+	--ws-heat-3: color-mix(in srgb, #4a3fc4 46%, transparent);
+	--ws-heat-4: color-mix(in srgb, #4a3fc4 82%, transparent);
+	--ws-heat-5: color-mix(in srgb, #4a3fc4 92%, transparent);
 }
 
 .weekly-schedule-year-grid {
 	display: grid;
 	grid-template-columns: repeat(var(--ws-year-columns), minmax(0, 1fr));
-	gap: 6px;
+	gap: 10px;
 	padding: 14px 18px 6px;
 	outline: none;
 }
@@ -429,9 +454,11 @@ inside each day.
 
 	display: flex;
 	flex-direction: column;
+	justify-content: space-between;
+	aspect-ratio: 1 / 1;
 	gap: 2px;
 	min-width: 0;
-	padding: 6px 7px 7px;
+	padding: 9px 10px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: transparent;
@@ -520,34 +547,11 @@ inside each day.
 	opacity: 0.6;
 }
 
-/* The track only appears once there is something to measure, so an empty week
-   never reads as a full bar. */
-.weekly-schedule-year-bar {
-	flex: 1 1 auto;
-	min-width: 0;
-	height: 3px;
-	border-radius: 2px;
-	background: var(--background-modifier-border);
-	overflow: hidden;
-}
-
-.weekly-schedule-year-tile.is-empty .weekly-schedule-year-bar {
-	background: transparent;
-}
-
-.weekly-schedule-year-bar-fill {
-	height: 100%;
-	border-radius: 2px;
-	background: var(--background-modifier-border-hover);
-}
-
-/* Finished weeks are the record of the year, so they carry the accent. */
-.weekly-schedule-year-tile.is-past .weekly-schedule-year-bar-fill {
-	background: var(--interactive-accent);
-}
-
-.weekly-schedule-year-percent {
-	flex: 0 0 auto;
+/* The top two tiers carry white text: on their fill, the normal ink measures
+   below 4.5:1 in both themes. */
+.weekly-schedule-year-tile[data-heat="4"],
+.weekly-schedule-year-tile[data-heat="5"] {
+	color: var(--ws-heat-ink-strong);
 }
 
 /* Year totals sit below the grid, where they have the full width instead of
@@ -575,20 +579,7 @@ inside each day.
 	}
 }
 
-/* Too narrow even for a bar: the percentage alone still reads. */
-@container (width < 62px) {
-	.weekly-schedule-year-bar {
-		display: none;
-	}
-}
-
 /* ---------- Narrow panes ---------- */
-
-@media (width <= 900px) {
-	.weekly-schedule-board {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-}
 
 /* A phone still fits one column, but the wide gaps waste the little room there
    is, so the row gap tightens with it. */

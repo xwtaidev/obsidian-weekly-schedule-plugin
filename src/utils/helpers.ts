@@ -43,3 +43,24 @@ export function normalizeFolder(value: string): string {
 		.replace(/\/+$/, '')
 		.replace(/\/{2,}/g, '/');
 }
+
+/**
+ * How many columns of `minColumnWidth` fit in `availableWidth`.
+ *
+ * Both views size their grid from the pane they are actually in rather than from
+ * the window, because an Obsidian pane is often a sidebar or half a split.
+ * `availableWidth` should exclude the grid's own horizontal padding.
+ */
+export function fitColumns(
+	availableWidth: number,
+	minColumnWidth: number,
+	maxColumns: number,
+	gap: number,
+	itemCount: number,
+): number {
+	if (availableWidth <= 0 || minColumnWidth <= 0) {
+		return Math.max(1, Math.min(maxColumns, itemCount));
+	}
+	const fitting = Math.floor((availableWidth + gap) / (minColumnWidth + gap));
+	return Math.max(1, Math.min(maxColumns, itemCount, fitting));
+}

@@ -1,12 +1,7 @@
 import { ItemView, moment, setIcon } from 'obsidian';
 import { VIEW_TYPE_WEEKLY_SCHEDULE_YEAR } from '../constants';
-import {
-	dateKey,
-	formatWeekRange,
-	isoWeeksOfYear,
-	isoYearOf,
-	startOfWeek,
-} from '../utils/date';
+import { dateKey, formatWeekRange, isoWeeksOfYear, isoYearOf, startOfWeek } from '../utils/date';
+import { fitColumns } from '../utils/helpers';
 import type { WorkspaceLeaf } from 'obsidian';
 import type WeeklySchedulePlugin from '../main';
 import type { Moment } from '../utils/date';
@@ -17,15 +12,21 @@ export const YEAR_VIEW_ICON = 'calendar-range';
 /**
  * Layout targets for the tile grid.
  *
- * 13 columns is the intended shape: about a quarter per row, four rows to a
- * 52-week year. A narrow pane gives up columns so tiles keep their date range,
- * but a wide pane never adds more, which would break that row structure.
+ * 10 columns is the intended shape. A narrow pane gives up columns so tiles keep
+ * their date range, but only down to a floor: below roughly five columns a year
+ * of 53 tiles turns into a long scroll, which is worse than slightly small tiles.
  */
-const TILE_MIN_WIDTH = 78;
-const MAX_COLUMNS = 13;
-const GRID_GAP = 6;
-/** Width of the scrollbar Obsidian may keep on the pane. */
-const PANE_SLACK = 26;
+const TILE_MIN_WIDTH = 118;
+const MIN_COLUMNS = 5;
+const MAX_COLUMNS = 10;
+const GRID_GAP = 10;
+/** Grid padding (36px) plus the scrollbar Obsidian may keep on the pane. */
+const PANE_SLACK = 62;
+
+/** Completion percentage -> heat step 0..5, matching the ramp in styles.css. */
+function heatStep(percent: number | null): number {
+	return percent === null ? 0 : Math.min(5, Math.round(percent / 16.67));
+}
 
 /** Persisted with the workspace so the browsed year survives a restart. */
 interface YearViewState extends Record<string, unknown> {
@@ -174,16 +175,20 @@ export class WeeklyScheduleYearView extends ItemView {
 		if (cell.stats.total === 0) {
 			meta.setText('—');
 			tile.removeAttribute('aria-label');
+			tile.removeAttribute('data-heat');
+			tile.style.removeProperty('background');
 			return;
 		}
 
-		meta.createDiv({ cls: 'weekly-schedule-year-bar' })
-			.createDiv({ cls: 'weekly-schedule-year-bar-fill' })
-			.style.width = `${cell.stats.percent ?? 0}%`;
-		meta.createSpan({
-			cls: 'weekly-schedule-year-percent',
-			text: `${cell.stats.percent ?? 0}%`,
-		});
+		meta.setText(`${cell.stats.percent ?? 0}%`);
+		if (this.isPastWeek(cell)) {
+			const step = heatStep(cell.stats.percent);
+			tile.dataset.heat = String(step);
+			tile.style.setProperty('background', `var(--ws-heat-${step})`);
+		} else {
+			tile.removeAttribute('data-heat');
+			tile.style.removeProperty('background');
+		}
 		tile.setAttribute(
 			'aria-label',
 			`第 ${cell.week} 周，${formatWeekRange(cell.start)}，完成 ${cell.stats.done}/${cell.stats.total}`,
@@ -221,7 +226,6 @@ export class WeeklyScheduleYearView extends ItemView {
 	 * Driven by width only. Squeezing the column count to also fit the height was
 	 * tried and rejected: in a short pane it produced very wide tiles with clipped
 	 * date ranges, and losing columns costs more than letting the pane scroll.
-	 * The count is clamped so a tile is never narrower than its content needs.
 	 */
 	private updateColumns(): void {
 		const width = this.contentEl.clientWidth;
@@ -229,10 +233,14 @@ export class WeeklyScheduleYearView extends ItemView {
 			return;
 		}
 
-		const usable = width - 36 - PANE_SLACK;
-		const byWidth = Math.floor((usable + GRID_GAP) / (TILE_MIN_WIDTH + GRID_GAP));
-		const columns = Math.max(1, Math.min(this.cells.length, MAX_COLUMNS, byWidth));
-
+		const fitted = fitColumns(
+			width - 36 - PANE_SLACK,
+			TILE_MIN_WIDTH,
+			MAX_COLUMNS,
+			GRID_GAP,
+			this.cells.length,
+		);
+		const columns = Math.max(MIN_COLUMNS, fitted);
 		if (columns === this.columns) {
 			return;
 		}
@@ -241,7 +249,7 @@ export class WeeklyScheduleYearView extends ItemView {
 	}
 
 	/** Column count the grid was last laid out with, for keyboard navigation. */
-	private columns = 13;
+	private columns = MAX_COLUMNS;
 
 	private renderBoard(): void {
 		this.contentEl.empty();
@@ -283,19 +291,18 @@ export class WeeklyScheduleYearView extends ItemView {
 			if (cell.stats.total === 0) {
 				meta.setText('—');
 			} else {
-				// A quiet bar plus the numbers: the bar is for scanning, the
-				// numbers are for precision.
-				const bar = meta.createDiv({ cls: 'weekly-schedule-year-bar' });
-				bar.createDiv({ cls: 'weekly-schedule-year-bar-fill' }).style.width =
-					`${cell.stats.percent ?? 0}%`;
-				meta.createSpan({
-					cls: 'weekly-schedule-year-percent',
-					text: `${cell.stats.percent ?? 0}%`,
-				});
+				meta.setText(`${cell.stats.percent ?? 0}%`);
 				tile.setAttribute(
 					'aria-label',
 					`第 ${cell.week} 周，${formatWeekRange(cell.start)}，完成 ${cell.stats.done}/${cell.stats.total}`,
 				);
+				// Fill depth carries completion. Only finished weeks are filled:
+				// a week that has not happened yet has no completion to show.
+				if (this.isPastWeek(cell)) {
+					const step = heatStep(cell.stats.percent);
+					tile.dataset.heat = String(step);
+					tile.style.setProperty('background', `var(--ws-heat-${step})`);
+				}
 			}
 
 			tile.addEventListener('click', () => {
