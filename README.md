@@ -162,12 +162,65 @@ Obsidian reads `main.js` only when a plugin loads.
 3. Create a GitHub release whose tag exactly matches the manifest version (no leading `v`).
 4. Attach `main.js`, `manifest.json`, and `styles.css` as release assets.
 
-## Before publishing
+## Releasing
 
-- Fill in `author` (and optionally `authorUrl`, `fundingUrl`) in `manifest.json`.
-- Add a `LICENSE` file with the license you intend to ship.
-- Confirm `id` in `manifest.json` matches the plugin folder name used for local development; never change it after release.
-- Review the [developer policies](https://docs.obsidian.md/Developer+policies) and [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
+The repository already carries the standard workflows, so publishing a version is
+tag-driven:
+
+```bash
+# 1. Bump the version. This rewrites manifest.json and versions.json for you.
+npm version 0.1.1 --no-git-tag-version
+git add manifest.json versions.json package.json
+git commit -m "release: 0.1.1"
+
+# 2. Tag with the exact manifest version, no leading "v".
+git tag 0.1.1
+git push origin main --follow-tags
+```
+
+Pushing the tag runs `.github/workflows/release.yml`, which builds the plugin and
+creates a **draft** release with `main.js`, `manifest.json` and `styles.css`
+attached. Review the draft, then publish it — the tag and `manifest.json`'s
+`version` must match exactly, and `versions.json` must map that version to
+`minAppVersion`.
+
+## Getting listed in the community catalog
+
+The plugin is installable by URL before this step; the catalog is what makes it
+searchable inside Obsidian.
+
+1. Release at least one version (above) and confirm the three release assets exist.
+2. Confirm `id`, `name`, `description` and `author` in `manifest.json` are what you
+   want shown publicly — the catalog entry is built from them, plus `repo`.
+3. Open a pull request against
+   [obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases)
+   that adds one entry to `community-plugins.json`, keeping the array's existing
+   ordering convention:
+   ```json
+   {
+       "id": "weekly-schedule",
+       "name": "Weekly Schedule",
+       "author": "xwtaidev",
+       "description": "Plan and review your week inside Obsidian.",
+       "repo": "xwtaidev/obsidian-weekly-schedule-plugin"
+   }
+   ```
+4. Keep `id` stable forever: it is the key Obsidian uses to update installed
+   plugins. Changing it later breaks every existing installation.
+
+### Before submitting
+
+- `LICENSE` and a `README.md` are present (both are required).
+- No network calls, no telemetry — this plugin reads and writes only its own files
+  in the vault.
+- `minAppVersion` is honest. It is currently `1.13.0` because the settings tab uses
+  the declarative settings API and the views use APIs added in 1.5.7.
+- Install it into a **clean vault** from the built files and check that enabling,
+  disabling and reloading the plugin leave nothing broken.
+- Review the [developer policies](https://docs.obsidian.md/Developer+policies) and
+  [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
+- Keep `description` short: the catalog shows a truncated line, so lead with what
+  the plugin does.
 
 ## API documentation
 
