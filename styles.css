@@ -433,6 +433,19 @@ inside each day.
 	--ws-heat-3: color-mix(in srgb, var(--interactive-accent) 46%, transparent);
 	--ws-heat-4: color-mix(in srgb, var(--interactive-accent) 72%, transparent);
 	--ws-heat-5: color-mix(in srgb, var(--interactive-accent) 82%, transparent);
+
+	/* Hover deepens the fill of the same ramp instead of substituting an unrelated
+	   hover colour. The earlier version swapped in the generic hover tint, which
+	   hid the completion shading and, in light themes, turned a deep fill pale
+	   under white text. Staying on the ramp keeps the fill recognisable and keeps
+	   the pointer feedback that worked. +10% per step, capped at 88% so white text
+	   on the two lightest steps still clears 4.5:1. */
+	--ws-heat-hover-0: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+	--ws-heat-hover-1: color-mix(in srgb, var(--interactive-accent) 32%, transparent);
+	--ws-heat-hover-2: color-mix(in srgb, var(--interactive-accent) 44%, transparent);
+	--ws-heat-hover-3: color-mix(in srgb, var(--interactive-accent) 56%, transparent);
+	--ws-heat-hover-4: color-mix(in srgb, var(--interactive-accent) 82%, transparent);
+	--ws-heat-hover-5: color-mix(in srgb, var(--interactive-accent) 88%, transparent);
 	--ws-heat-ink-strong: #fff;
 }
 
@@ -445,6 +458,15 @@ inside each day.
 	--ws-heat-3: color-mix(in srgb, #4a3fc4 46%, transparent);
 	--ws-heat-4: color-mix(in srgb, #4a3fc4 82%, transparent);
 	--ws-heat-5: color-mix(in srgb, #4a3fc4 92%, transparent);
+	/* Deeper than the dark theme's hover steps, because most light-theme tiers use
+	   dark text: past about 56% that text no longer clears 4.5:1. The cap is fine
+	   here because the light ramp starts from a darker fill. */
+	--ws-heat-hover-0: color-mix(in srgb, #4a3fc4 20%, transparent);
+	--ws-heat-hover-1: color-mix(in srgb, #4a3fc4 32%, transparent);
+	--ws-heat-hover-2: color-mix(in srgb, #4a3fc4 44%, transparent);
+	--ws-heat-hover-3: color-mix(in srgb, #4a3fc4 56%, transparent);
+	--ws-heat-hover-4: color-mix(in srgb, #4a3fc4 90%, transparent);
+	--ws-heat-hover-5: color-mix(in srgb, #4a3fc4 96%, transparent);
 }
 
 .weekly-schedule-year-grid {
@@ -481,7 +503,10 @@ inside each day.
 	background: transparent;
 	box-shadow: none;
 	cursor: pointer;
-	color: var(--text-muted);
+	/* The inner box inherits, so this must be the normal ink: leaving it to be
+	   inherited produced --text-muted for every tier, which quietly flattened the
+	   text hierarchy — the percentages looked disabled rather than empty. */
+	color: var(--text-normal);
 	text-align: start;
 	appearance: none;
 }
@@ -517,14 +542,22 @@ inside each day.
 		transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Hover must not repaint the fill. Doing that erased the completion shading under
-   the cursor — the one thing these tiles exist to show — and in light themes it
-   replaced a deep fill with a pale one while the text stayed white, which measured
-   1.1:1. The affordance is the border instead: the fill and its text are left
-   exactly as they were, so no combination of theme and tier can lose contrast. */
-.weekly-schedule-year-tile:hover .weekly-schedule-year-inner {
-	border-color: var(--interactive-accent);
-}
+/* Hover deepens the fill one step along the same ramp. It does not substitute an
+   unrelated colour: that hid the completion shading, and in light themes it made a
+   deep fill pale while the text stayed white (1.1:1). Deepening keeps the fill
+   recognisable and keeps the pointer feedback. */
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="0"] { --ws-heat-current: var(--ws-heat-hover-0); }
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="1"] { --ws-heat-current: var(--ws-heat-hover-1); }
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="2"] { --ws-heat-current: var(--ws-heat-hover-2); }
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="3"] { --ws-heat-current: var(--ws-heat-hover-3); }
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="4"] { --ws-heat-current: var(--ws-heat-hover-4); }
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner[data-heat="5"] { --ws-heat-current: var(--ws-heat-hover-5); }
+
+/* Hover keeps the tier's own ink. Switching the two heaviest tiers to the normal
+   ink on hover was tried and reverted: the deepened fill is a bright accent, and
+   dark text on it measured far below the floor — the hovered tile's text became
+   unreadable. White stays legible on the deepened fills (4.5:1 or better through
+   the 88% cap). */
 
 .weekly-schedule-year-tile:active .weekly-schedule-year-inner {
 	transform: scale(0.98);
