@@ -397,12 +397,6 @@ inside each day.
 	white-space: nowrap;
 }
 
-.weekly-schedule-add-hint {
-	flex: 0 0 auto;
-	letter-spacing: 2px;
-	opacity: 0.6;
-}
-
 /* ---------- Narrow panes ---------- */
 
 @media (width <= 900px) {

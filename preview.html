@@ -339,7 +339,6 @@
 	}
 	.weekly-schedule-add-icon { font-weight: 600; }
 	.weekly-schedule-add-label { flex: 1 1 auto; }
-	.weekly-schedule-add-hint { letter-spacing: 2px; opacity: 0.6; }
 
 	@media (max-width: 900px) {
 		.weekly-schedule-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -465,7 +464,7 @@ DAYS.forEach((day, index) => {
 		add.innerHTML = `
 			<span class="weekly-schedule-add-icon">+</span>
 			<span class="weekly-schedule-add-label">添加一个待办事项</span>
-			<span class="weekly-schedule-add-hint">↑ ↓</span>`;
+`;
 		cell.append(add);
 
 		cells.append(cell);

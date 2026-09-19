@@ -332,7 +332,6 @@ export class WeeklyScheduleView extends ItemView {
 		});
 		add.createSpan({ cls: 'weekly-schedule-add-icon', text: '+' });
 		add.createSpan({ cls: 'weekly-schedule-add-label', text: '添加一个待办事项' });
-		add.createSpan({ cls: 'weekly-schedule-add-hint', text: '↑ ↓' });
 		add.addEventListener('click', () => void this.addTask(day, quadrant));
 	}
 
