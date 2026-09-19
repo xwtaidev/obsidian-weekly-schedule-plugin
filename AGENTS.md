@@ -6,7 +6,12 @@
 - Target: Obsidian Community Plugin (TypeScript → bundled JavaScript).
 - Entry point: `src/main.ts` compiled to `main.js` and loaded by Obsidian.
 - Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
-- Current state: initialized baseline — lifecycle in `src/main.ts` and an empty settings tab in `src/settings.ts`. Feature modules are yet to be added.
+- Current state: the weekly board is implemented.
+    - `src/main.ts` — lifecycle, view registration, commands, vault events (keep it this small).
+    - `src/ui/weekly-schedule-view.ts` — the board view: 7 columns x 4 priority cells.
+    - `src/store.ts` — per-week Markdown files, caching, debounced writes, external-edit reloads.
+    - `src/markdown.ts` — Markdown <-> board conversion (standard `- [ ]` checkbox syntax).
+    - `src/utils/date.ts` — week arithmetic, ISO week file names.
 
 ## Environment & tooling
 

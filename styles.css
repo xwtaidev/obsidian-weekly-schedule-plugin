@@ -1,4 +1,300 @@
 /*
 Styles for the Weekly Schedule plugin.
-Classes added from TypeScript are prefixed with `weekly-schedule-`.
+Layout: one column per day, four priority cells per column.
 */
+
+.weekly-schedule-container {
+	--ws-q1: #ef4444;
+	--ws-q2: #a855f7;
+	--ws-q3: #3b82f6;
+	--ws-q4: #71717a;
+	--ws-cell-bg: rgb(0 0 0 / 22%);
+	--ws-row-bg: rgb(255 255 255 / 3%);
+	--ws-row-border: rgb(255 255 255 / 9%);
+
+	padding: 0;
+	overflow: auto;
+}
+
+/* The board uses the full pane width instead of a column-limited note width. */
+.weekly-schedule-leaf .view-content {
+	--file-margins: 0;
+}
+
+/* Hide the view header: the toolbar below carries the title and navigation. */
+.weekly-schedule-leaf .view-header {
+	display: none;
+}
+
+/* ---------- Toolbar ---------- */
+
+.weekly-schedule-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background-color: var(--background-primary);
+}
+
+.weekly-schedule-nav,
+.weekly-schedule-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.weekly-schedule-week-label {
+	font-size: 0.95em;
+	font-weight: 600;
+	padding: 0 4px;
+	white-space: nowrap;
+}
+
+.weekly-schedule-text-button {
+	padding: 3px 10px;
+	font-size: 0.85em;
+}
+
+.weekly-schedule-button svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* ---------- Board ---------- */
+
+.weekly-schedule-board {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	align-items: start;
+	gap: 10px;
+	padding: 12px 14px 20px;
+}
+
+.weekly-schedule-day {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.weekly-schedule-day-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 2px 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.weekly-schedule-day-name {
+	font-weight: 600;
+	font-size: 0.95em;
+}
+
+.weekly-schedule-day-date {
+	font-size: 0.78em;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-day.is-today .weekly-schedule-day-name {
+	color: var(--text-accent);
+}
+
+/* ---------- Priority cells ---------- */
+
+.weekly-schedule-cells {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.weekly-schedule-cell {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+	background-color: var(--ws-cell-bg);
+}
+
+.weekly-schedule-cell-header {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	color: #fff;
+	font-size: 0.75em;
+	font-weight: 600;
+	line-height: 1.5;
+}
+
+.weekly-schedule-cell-sep {
+	opacity: 0.7;
+}
+
+.weekly-schedule-cell-q1 .weekly-schedule-cell-header {
+	background-color: var(--ws-q1);
+}
+
+.weekly-schedule-cell-q2 .weekly-schedule-cell-header {
+	background-color: var(--ws-q2);
+}
+
+.weekly-schedule-cell-q3 .weekly-schedule-cell-header {
+	background-color: var(--ws-q3);
+}
+
+.weekly-schedule-cell-q4 .weekly-schedule-cell-header {
+	background-color: var(--ws-q4);
+}
+
+.weekly-schedule-list {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 5px;
+	min-height: 30px;
+}
+
+.weekly-schedule-empty {
+	font-size: 0.75em;
+	color: var(--text-faint);
+	padding: 2px 4px;
+}
+
+/* ---------- Tasks ---------- */
+
+.weekly-schedule-task {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 3px 5px;
+	border: 1px solid var(--ws-row-border);
+	border-radius: 4px;
+	background-color: var(--ws-row-bg);
+}
+
+.weekly-schedule-task:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+
+.weekly-schedule-checkbox {
+	margin: 2px 0 0;
+	flex: 0 0 auto;
+}
+
+.weekly-schedule-task-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: 0.82em;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+	cursor: text;
+	outline: none;
+	border-radius: 3px;
+}
+
+.weekly-schedule-task-text:empty::before {
+	content: '输入待办事项…';
+	color: var(--text-faint);
+}
+
+.weekly-schedule-task-text:focus {
+	background-color: var(--background-modifier-hover);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.weekly-schedule-task.is-done .weekly-schedule-task-text {
+	color: var(--text-faint);
+	text-decoration: line-through;
+}
+
+/* Row controls stay out of the way until the row is hovered or focused. */
+.weekly-schedule-task-controls {
+	display: flex;
+	align-items: center;
+	gap: 0;
+	flex: 0 0 auto;
+	opacity: 0;
+	transition: opacity 100ms ease-in;
+}
+
+.weekly-schedule-task:hover .weekly-schedule-task-controls,
+.weekly-schedule-task:focus-within .weekly-schedule-task-controls {
+	opacity: 1;
+}
+
+.weekly-schedule-task-button {
+	padding: 0;
+	width: 18px;
+	height: 18px;
+}
+
+.weekly-schedule-task-button svg {
+	width: 12px;
+	height: 12px;
+}
+
+/* ---------- Add button ---------- */
+
+.weekly-schedule-add {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	width: 100%;
+	margin-top: auto;
+	padding: 4px 8px;
+	border: 0;
+	border-top: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 0.75em;
+	line-height: 1.6;
+	cursor: pointer;
+	text-align: start;
+}
+
+.weekly-schedule-add:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.weekly-schedule-add-icon {
+	font-weight: 600;
+}
+
+.weekly-schedule-add-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.weekly-schedule-add-hint {
+	flex: 0 0 auto;
+	letter-spacing: 2px;
+	opacity: 0.75;
+}
+
+/* ---------- Narrow panes ---------- */
+
+@media (width <= 900px) {
+	.weekly-schedule-board {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (width <= 560px) {
+	.weekly-schedule-board {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

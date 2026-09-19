@@ -1,17 +1,23 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { PluginSettingTab, Setting } from 'obsidian';
+import { DEFAULT_FOLDER, WEEK_START_OPTIONS } from './constants';
+import { normalizeFolder } from './utils/helpers';
+import type { App, SettingDefinitionItem } from 'obsidian';
 import type WeeklySchedulePlugin from './main';
 
 export interface WeeklyScheduleSettings {
-	/**
-	 * Starts a new schedule year on this weekday.
-	 * 1 = Monday … 7 = Sunday (ISO-8601).
-	 */
+	/** Vault folder holding the weekly Markdown files. */
+	folder: string;
+	/** First day of the week: 1 = Monday, 0 = Sunday. */
 	weekStartsOn: number;
 }
 
 export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
+	folder: DEFAULT_FOLDER,
 	weekStartsOn: 1,
 };
+
+const FOLDER_KEY = 'folder';
+const WEEK_START_KEY = 'weekStartsOn';
 
 export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	plugin: WeeklySchedulePlugin;
@@ -21,12 +27,75 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const { containerEl } = this;
+	/**
+	 * Declarative settings, so the board's options are reachable from
+	 * Obsidian's settings search.
+	 */
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: 'Schedule folder',
+				desc: 'Vault folder for the weekly files. The plugin writes one file per week, named after its ISO week, for example 2026-W12.md.',
+				aliases: ['path', 'directory', 'weekly files'],
+				control: {
+					type: 'text',
+					key: FOLDER_KEY,
+					placeholder: DEFAULT_FOLDER,
+				},
+			},
+			{
+				name: 'Week starts on',
+				desc: 'Which day the board starts with. Week numbers in file names stay ISO-based either way.',
+				control: {
+					type: 'dropdown',
+					key: WEEK_START_KEY,
+					options: Object.fromEntries(
+						WEEK_START_OPTIONS.map((option) => [String(option.value), option.label]),
+					),
+				},
+			},
+			{
+				name: 'Open board',
+				desc: 'Open the weekly board in a tab, or focus it when it is already open.',
+				action: (el) => {
+					new Setting(el).addButton((button) =>
+						button.setButtonText('Open').onClick(() => {
+							void this.plugin.activateView();
+						}),
+					);
+				},
+			},
+		];
+	}
 
-		containerEl.empty();
+	getControlValue(key: string): unknown {
+		if (key === FOLDER_KEY) {
+			return this.plugin.settings.folder;
+		}
+		if (key === WEEK_START_KEY) {
+			return String(this.plugin.settings.weekStartsOn);
+		}
+		return undefined;
+	}
 
-		// TODO: add settings with `new Setting(containerEl)` and persist
-		// changes through `this.plugin.saveSettings()`.
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		if (key === FOLDER_KEY) {
+			const folder = normalizeFolder(typeof value === 'string' ? value : '');
+			if (folder === this.plugin.settings.folder) {
+				return;
+			}
+			this.plugin.settings.folder = folder;
+		} else if (key === WEEK_START_KEY) {
+			const weekStartsOn = Number(value);
+			if (weekStartsOn === this.plugin.settings.weekStartsOn) {
+				return;
+			}
+			this.plugin.settings.weekStartsOn = weekStartsOn;
+		} else {
+			return;
+		}
+
+		await this.plugin.saveSettings();
+		await this.plugin.handleSettingsChange();
 	}
 }

@@ -2,21 +2,78 @@
 
 Plan and review your week inside Obsidian.
 
-> Status: freshly initialized project. The plugin currently only wires up its lifecycle and an empty settings tab — features are yet to be built.
+The plugin adds a weekly board: one column per day (Monday to Sunday), and four
+priority cells per day based on importance and urgency. Each cell holds a task
+list and an **添加一个待办事项** button.
+
+## Using the board
+
+Open it from the ribbon calendar icon, the **Open weekly board** command, or
+**Settings → Weekly Schedule → Open board**.
+
+- **添加一个待办事项** appends an empty task and puts the cursor in it. Type and
+  press `Enter` to commit, or `Esc` to discard. A task left empty is never
+  written to the file.
+- Click a checkbox to mark a task done. Tasks completed while **隐藏已完成** is
+  active stay in the file and reappear when completed tasks are shown again.
+- Hover a task for its `↑` `↓` and delete controls; right-click it for the same
+  actions as a menu.
+- The toolbar moves between weeks, returns to **本周**, toggles completed tasks,
+  and opens the week's Markdown file.
+
+## How tasks are stored
+
+One Markdown file per week, in the folder set in settings (default
+`weekly-schedule/`), named after its ISO week:
+
+```
+weekly-schedule/2026-W12.md
+```
+
+```markdown
+# 2026-W12
+
+## 周一
+
+### 重要 · 紧急
+- [ ] 交周报
+- [x] 修线上 bug
+
+### 不重要 · 不紧急
+- [ ] 整理书签
+```
+
+Cells without tasks are omitted, so the file stays short. Standard checkbox
+syntax means these tasks are ordinary Markdown: they are searchable, work with
+task-oriented plugins, and can be edited by hand.
+
+Editing the file outside the board works too — the board reloads when the file
+changes on disk. Save the file and the board follows. When the board itself has
+an edit that has not been written yet, the board's version wins and is written
+out, so typing in the board is never discarded.
 
 ## Layout
 
 ```
 src/
-  main.ts       # Plugin entry point: lifecycle only (onload, settings loading)
-  settings.ts   # Settings interface, defaults, and the settings tab
+  main.ts                 # Lifecycle, view registration, commands, vault events
+  settings.ts             # Settings interface, defaults, settings tab
+  store.ts                # Reading/writing weekly files, caching, debounced saves
+  markdown.ts             # Markdown <-> board conversion
+  constants.ts            # View type, quadrants, days, defaults
+  types.ts                # Data model
+  ui/
+    weekly-schedule-view.ts  # The board view
+  utils/
+    date.ts               # Week arithmetic and file naming
+    helpers.ts            # Small shared helpers
 ```
-
-`src/main.ts` stays small on purpose: add features as separate modules under `src/` (for example `src/commands/`, `src/ui/`, `src/utils/`) and register them from `onload`.
 
 ## Development
 
-Requires Node.js 18+ (LTS recommended).
+Requires Node.js 18+ (LTS recommended). `minAppVersion` is 1.13.0, because the
+settings tab uses Obsidian's declarative settings API so the options appear in
+settings search.
 
 ```bash
 npm install        # install dependencies
