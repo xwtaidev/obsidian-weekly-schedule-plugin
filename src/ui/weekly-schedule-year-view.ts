@@ -22,6 +22,8 @@ const MAX_COLUMNS = 10;
 const GRID_GAP = 10;
 /** Grid padding: 18px each side, and 36px total as used in the fit above. */
 const GRID_PADDING = 36;
+/** Tile width divided by tile height. 1 would be square; 1.35 is noticeably shorter. */
+const TILE_ASPECT = 1.35;
 /** Grid padding (36px) plus the scrollbar Obsidian may keep on the pane. */
 const PANE_SLACK = 62;
 
@@ -257,7 +259,14 @@ export class WeeklyScheduleYearView extends ItemView {
 		const rows = Math.ceil(this.cells.length / columns);
 		const columnWidth = (this.contentEl.clientWidth - GRID_PADDING - (columns - 1) * GRID_GAP) / columns;
 		this.contentEl.style.setProperty('--ws-year-rows', String(rows));
-		this.contentEl.style.setProperty('--ws-year-tile', `${Math.floor(columnWidth)}px`);
+		// Slightly wider than tall. A tile holds three short lines, so a square left
+		// a band of empty space under the percentage; this keeps the text and gives
+		// back the rest. The content needs about 72px, so the ratio never goes below
+		// that at the column widths the fitting produces.
+		this.contentEl.style.setProperty(
+			'--ws-year-tile',
+			`${Math.floor(columnWidth / TILE_ASPECT)}px`,
+		);
 	}
 
 	/** Column count the grid was last laid out with, for keyboard navigation. */
