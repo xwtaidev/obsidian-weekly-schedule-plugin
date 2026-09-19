@@ -274,6 +274,14 @@ export class WeeklyScheduleView extends ItemView {
 			dateEl.setText(date.format('M/D'));
 		}
 
+		// Remaining work for the day, so a full week is scannable at a glance.
+		const count = header.createSpan({ cls: 'weekly-schedule-day-count' });
+		const open = day.quadrants.reduce(
+			(total, quadrant) => total + quadrant.tasks.filter((task) => !task.done).length,
+			0,
+		);
+		count.setText(open > 0 ? `${open} 项` : '');
+
 		const today = date ? isSameDay(date, moment()) : false;
 		column.toggleClass('is-today', today);
 		header.toggleClass('is-today', today);
@@ -308,11 +316,9 @@ export class WeeklyScheduleView extends ItemView {
 			});
 		}
 
+		// An empty cell stays empty: the add row below already says the cell can
+		// take a task, and repeating a placeholder in all 28 cells is noise.
 		const list = cell.createDiv({ cls: 'weekly-schedule-list' });
-		const visible = quadrant.tasks.filter((task) => this.showCompleted || !task.done);
-		if (visible.length === 0) {
-			list.createDiv({ cls: 'weekly-schedule-empty', text: '暂无待办' });
-		}
 		for (const task of quadrant.tasks) {
 			if (!this.showCompleted && task.done) {
 				continue;

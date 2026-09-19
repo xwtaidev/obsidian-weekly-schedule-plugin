@@ -2,9 +2,14 @@
 
 Plan and review your week inside Obsidian.
 
-The plugin adds a weekly board: one column per day (Monday to Sunday), and four
-priority cells per day based on importance and urgency. Each cell holds a task
-list and an **添加一个待办事项** button.
+The plugin adds a weekly board: three days per row, three rows (3 + 3 + 1), and
+four priority cells per day based on importance and urgency. Each cell holds a
+task list and an **添加一个待办事项** button.
+
+The design is deliberately flat: hierarchy comes from thin rules, spacing and a
+muted colour per priority — no shadows and no nested card borders. Each day
+shows its date and how many tasks are still open. Hovering a task reveals its
+reorder and delete controls.
 
 ## Using the board
 

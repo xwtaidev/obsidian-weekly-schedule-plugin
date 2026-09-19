@@ -1,19 +1,45 @@
 /*
 Styles for the Weekly Schedule plugin.
-Layout: one column per day, four priority cells per column.
+
+Design intent: flat and quiet. Hierarchy comes from 1px rules, negative space
+and muted semantic colour only — no shadows, no nested card borders, no solid
+colour blocks to denote priority.
+
+Layout: three days per row, three rows (3 + 3 + 1). Quadrants stack vertically
+inside each day.
 */
 
 .weekly-schedule-container {
-	--ws-q1: #ef4444;
-	--ws-q2: #a855f7;
-	--ws-q3: #3b82f6;
-	--ws-q4: #71717a;
-	--ws-cell-bg: rgb(0 0 0 / 22%);
-	--ws-row-bg: rgb(255 255 255 / 3%);
-	--ws-row-border: rgb(255 255 255 / 9%);
+	/* Quadrant colour has two tiers so both stay legible: `-rail` draws the 2px
+	   margin bar (non-text, needs 3:1) and `-label` colours the 11px text
+	   (needs 4.5:1). These light-theme values were solved against #ffffff. */
+	--ws-q1-rail: #b6575f;
+	--ws-q2-rail: #8a6dbb;
+	--ws-q3-rail: #4f81b8;
+	--ws-q4-rail: #7d8188;
+	--ws-q1-label: #b6575f;
+	--ws-q2-label: #8469b4;
+	--ws-q3-label: #4a79ad;
+	--ws-q4-label: #73777d;
+
+	--ws-gap-column: 32px;
+	--ws-gap-row: 48px;
 
 	padding: 0;
 	overflow: auto;
+}
+
+/* Solved against #1e1e1e; the label tier is blended toward white. Obsidian
+   puts `.theme-dark` on the body, which still matches this descendant. */
+.theme-dark .weekly-schedule-container {
+	--ws-q1-rail: #b6575f;
+	--ws-q2-rail: #8a6dbb;
+	--ws-q3-rail: #4f81b8;
+	--ws-q4-rail: #7d8188;
+	--ws-q1-label: #c06e75;
+	--ws-q2-label: #9378c0;
+	--ws-q3-label: #5a89bc;
+	--ws-q4-label: #82858c;
 }
 
 /* The board uses the full pane width instead of a column-limited note width. */
@@ -34,7 +60,7 @@ Layout: one column per day, four priority cells per column.
 	justify-content: space-between;
 	gap: 12px;
 	flex-wrap: wrap;
-	padding: 10px 14px;
+	padding: 10px 18px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	position: sticky;
 	top: 0;
@@ -46,19 +72,52 @@ Layout: one column per day, four priority cells per column.
 .weekly-schedule-actions {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 }
 
 .weekly-schedule-week-label {
-	font-size: 0.95em;
+	font-size: 14px;
 	font-weight: 600;
-	padding: 0 4px;
+	letter-spacing: -0.01em;
+	padding: 0 8px;
 	white-space: nowrap;
 }
 
+.weekly-schedule-button,
 .weekly-schedule-text-button {
-	padding: 3px 10px;
-	font-size: 0.85em;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 28px;
+	min-width: 28px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition:
+		transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+		background-color 120ms ease,
+		color 120ms ease;
+}
+
+.weekly-schedule-text-button {
+	font-size: 13px;
+}
+
+.weekly-schedule-button:hover,
+.weekly-schedule-text-button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Tactile press stands in for elevation feedback. */
+.weekly-schedule-button:active,
+.weekly-schedule-text-button:active,
+.weekly-schedule-add:active {
+	transform: scale(0.97);
 }
 
 .weekly-schedule-button svg {
@@ -68,38 +127,54 @@ Layout: one column per day, four priority cells per column.
 
 /* ---------- Board ---------- */
 
+/* Three days per row. The seventh day takes the first column of the last row
+   and the remaining space is left empty. */
 .weekly-schedule-board {
 	display: grid;
-	grid-template-columns: repeat(7, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	column-gap: var(--ws-gap-column);
+	row-gap: var(--ws-gap-row);
 	align-items: start;
-	gap: 10px;
-	padding: 12px 14px 20px;
+	padding: 18px;
 }
 
 .weekly-schedule-day {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
 	min-width: 0;
 }
 
+/* The header rule is the only divider, so no card wrapper is needed. */
 .weekly-schedule-day-header {
 	display: flex;
 	align-items: baseline;
-	justify-content: space-between;
-	gap: 6px;
-	padding: 2px 2px 6px;
+	gap: 8px;
+	padding-bottom: 7px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .weekly-schedule-day-name {
+	font-size: 14px;
 	font-weight: 600;
-	font-size: 0.95em;
+	letter-spacing: -0.01em;
 }
 
 .weekly-schedule-day-date {
-	font-size: 0.78em;
-	color: var(--text-muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+}
+
+.weekly-schedule-day-count {
+	margin-left: auto;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+}
+
+/* Today is one accent rule, not a filled column. */
+.weekly-schedule-day.is-today .weekly-schedule-day-header {
+	border-bottom-color: var(--interactive-accent);
 }
 
 .weekly-schedule-day.is-today .weekly-schedule-day-name {
@@ -111,95 +186,111 @@ Layout: one column per day, four priority cells per column.
 .weekly-schedule-cells {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
 }
 
+/* All four quadrants are always present and in a fixed order, so a cell's
+   position is stable even when it is empty. */
 .weekly-schedule-cell {
 	display: flex;
 	flex-direction: column;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	overflow: hidden;
-	background-color: var(--ws-cell-bg);
+	border-left: 2px solid var(--ws-accent);
+	padding-left: 10px;
+	margin-top: 14px;
+}
+
+.weekly-schedule-cell-q1 {
+	--ws-accent: var(--ws-q1-rail);
+	--ws-accent-label: var(--ws-q1-label);
+}
+
+.weekly-schedule-cell-q2 {
+	--ws-accent: var(--ws-q2-rail);
+	--ws-accent-label: var(--ws-q2-label);
+}
+
+.weekly-schedule-cell-q3 {
+	--ws-accent: var(--ws-q3-rail);
+	--ws-accent-label: var(--ws-q3-label);
+}
+
+.weekly-schedule-cell-q4 {
+	--ws-accent: var(--ws-q4-rail);
+	--ws-accent-label: var(--ws-q4-label);
 }
 
 .weekly-schedule-cell-header {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 4px 8px;
-	color: #fff;
-	font-size: 0.75em;
-	font-weight: 600;
-	line-height: 1.5;
+	gap: 5px;
+	font-size: 11px;
+	line-height: 1.4;
 }
 
-/* Importance and urgency read as separate labels, split by a separator. */
 .weekly-schedule-cell-label {
+	color: var(--ws-accent-label);
 	font-weight: 600;
 	white-space: nowrap;
 }
 
 .weekly-schedule-cell-sep {
-	opacity: 0.7;
-}
-
-.weekly-schedule-cell-q1 .weekly-schedule-cell-header {
-	background-color: var(--ws-q1);
-}
-
-.weekly-schedule-cell-q2 .weekly-schedule-cell-header {
-	background-color: var(--ws-q2);
-}
-
-.weekly-schedule-cell-q3 .weekly-schedule-cell-header {
-	background-color: var(--ws-q3);
-}
-
-.weekly-schedule-cell-q4 .weekly-schedule-cell-header {
-	background-color: var(--ws-q4);
-}
-
-.weekly-schedule-list {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	padding: 5px;
-	min-height: 30px;
-}
-
-.weekly-schedule-empty {
-	font-size: 0.75em;
 	color: var(--text-faint);
-	padding: 2px 4px;
 }
 
 /* ---------- Tasks ---------- */
 
+.weekly-schedule-list {
+	display: flex;
+	flex-direction: column;
+	margin-top: 5px;
+}
+
 .weekly-schedule-task {
 	display: flex;
 	align-items: flex-start;
-	gap: 6px;
-	padding: 3px 5px;
-	border: 1px solid var(--ws-row-border);
+	gap: 7px;
+	padding: 4px 6px 4px 4px;
 	border-radius: 4px;
-	background-color: var(--ws-row-bg);
+	transition: background-color 120ms ease;
 }
 
 .weekly-schedule-task:hover {
-	border-color: var(--background-modifier-border-hover);
+	background: var(--background-modifier-hover);
 }
 
 .weekly-schedule-checkbox {
-	margin: 2px 0 0;
 	flex: 0 0 auto;
+	appearance: none;
+	width: 13px;
+	height: 13px;
+	margin: 3px 0 0;
+	border: 1.5px solid var(--background-modifier-border-hover);
+	border-radius: 4px;
+	background-color: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	transition:
+		border-color 120ms ease,
+		background-color 120ms ease;
+}
+
+.weekly-schedule-checkbox:hover {
+	border-color: var(--ws-accent);
+}
+
+.weekly-schedule-checkbox:checked {
+	border-color: var(--ws-accent);
+	background-color: var(--ws-accent);
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+	background-size: 9px;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
 .weekly-schedule-task-text {
 	flex: 1 1 auto;
 	min-width: 0;
-	font-size: 0.82em;
-	line-height: 1.45;
+	font-size: 13px;
+	line-height: 1.5;
 	overflow-wrap: anywhere;
 	cursor: text;
 	outline: none;
@@ -219,16 +310,17 @@ Layout: one column per day, four priority cells per column.
 .weekly-schedule-task.is-done .weekly-schedule-task-text {
 	color: var(--text-faint);
 	text-decoration: line-through;
+	text-decoration-color: var(--background-modifier-border-hover);
 }
 
-/* Row controls stay out of the way until the row is hovered or focused. */
+/* Row controls hold their space at all times, so revealing them never reflows
+   the task text. */
 .weekly-schedule-task-controls {
 	display: flex;
-	align-items: center;
-	gap: 0;
+	gap: 1px;
 	flex: 0 0 auto;
 	opacity: 0;
-	transition: opacity 100ms ease-in;
+	transition: opacity 120ms ease;
 }
 
 .weekly-schedule-task:hover .weekly-schedule-task-controls,
@@ -237,9 +329,24 @@ Layout: one column per day, four priority cells per column.
 }
 
 .weekly-schedule-task-button {
-	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
 	width: 18px;
 	height: 18px;
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.weekly-schedule-task-button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
 }
 
 .weekly-schedule-task-button svg {
@@ -247,29 +354,34 @@ Layout: one column per day, four priority cells per column.
 	height: 12px;
 }
 
-/* ---------- Add button ---------- */
+/* ---------- Add task ---------- */
 
+/* A text-weight affordance rather than a bordered button box. Always visible,
+   including in empty cells, so every quadrant is obviously actionable. */
 .weekly-schedule-add {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 5px;
 	width: 100%;
-	margin-top: auto;
-	padding: 4px 8px;
+	margin-top: 5px;
+	padding: 4px;
 	border: 0;
-	border-top: 1px solid var(--background-modifier-border);
-	border-radius: 0;
-	background-color: transparent;
+	border-radius: 4px;
+	background: transparent;
 	box-shadow: none;
-	color: var(--text-muted);
-	font-size: 0.75em;
-	line-height: 1.6;
-	cursor: pointer;
+	color: var(--text-faint);
+	font: inherit;
+	font-size: 12px;
+	line-height: 1.5;
 	text-align: start;
+	cursor: pointer;
+	transition:
+		color 120ms ease,
+		background-color 120ms ease;
 }
 
 .weekly-schedule-add:hover {
-	background-color: var(--background-modifier-hover);
+	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
@@ -288,7 +400,7 @@ Layout: one column per day, four priority cells per column.
 .weekly-schedule-add-hint {
 	flex: 0 0 auto;
 	letter-spacing: 2px;
-	opacity: 0.75;
+	opacity: 0.6;
 }
 
 /* ---------- Narrow panes ---------- */
@@ -299,8 +411,14 @@ Layout: one column per day, four priority cells per column.
 	}
 }
 
+/* A phone still fits one column, but the wide gaps waste the little room there
+   is, so the row gap tightens with it. */
 @media (width <= 560px) {
 	.weekly-schedule-board {
 		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.weekly-schedule-container {
+		--ws-gap-row: 32px;
 	}
 }
