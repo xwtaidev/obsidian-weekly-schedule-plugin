@@ -1,0 +1,9 @@
+{
+	"id": "weekly-schedule",
+	"name": "Weekly Schedule",
+	"version": "0.1.0",
+	"minAppVersion": "1.0.0",
+	"description": "Plan and review your week inside Obsidian.",
+	"author": "",
+	"isDesktopOnly": false
+}
