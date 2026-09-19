@@ -134,6 +134,12 @@ Layout: one column per day, four priority cells per column.
 	line-height: 1.5;
 }
 
+/* Importance and urgency read as separate labels, split by a separator. */
+.weekly-schedule-cell-label {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
 .weekly-schedule-cell-sep {
 	opacity: 0.7;
 }
