@@ -11,6 +11,7 @@ import {
 } from '../utils/date';
 import { createTaskId, fitColumns } from '../utils/helpers';
 import { placeCaretAtEnd, registerInlineEditor, sleep } from './inline-editor';
+import { YEAR_VIEW_ICON } from './weekly-schedule-year-view';
 import type { Moment } from '../utils/date';
 import type { WorkspaceLeaf } from 'obsidian';
 import type WeeklySchedulePlugin from '../main';
@@ -277,6 +278,13 @@ export class WeeklyScheduleView extends ItemView {
 
 		const actions = this.toolbarEl.createDiv({ cls: 'weekly-schedule-actions' });
 		this.addTextButton(actions, '本周', () => void this.goToToday());
+		// Steps are fine for a week or two; this is the way to a distant one.
+		this.addIconButton(
+			actions,
+			YEAR_VIEW_ICON,
+			'年度总览',
+			() => void this.plugin.activateYearView(),
+		);
 		this.addIconButton(
 			actions,
 			this.showCompleted ? 'eye' : 'eye-off',

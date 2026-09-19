@@ -59,8 +59,19 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 				desc: 'Open the weekly board in a tab, or focus it when it is already open.',
 				action: (el) => {
 					new Setting(el).addButton((button) =>
-						button.setButtonText('Open').onClick(() => {
+						button.setButtonText('Open board').onClick(() => {
 							void this.plugin.activateView();
+						}),
+					);
+				},
+			},
+			{
+				name: 'Open year overview',
+				desc: 'Open the year overview, where a week can be picked from a whole year at once.',
+				action: (el) => {
+					new Setting(el).addButton((button) =>
+						button.setButtonText('Open overview').onClick(() => {
+							void this.plugin.activateYearView();
 						}),
 					);
 				},

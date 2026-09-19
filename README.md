@@ -19,7 +19,9 @@ days per row and gives up columns on a narrow pane; the year overview fits up to
 ## Using the board
 
 Open it from the ribbon calendar icon, the **Open weekly board** command, or
-**Settings → Weekly Schedule → Open board**.
+**Settings → Weekly Schedule → Open board**. The year overview has its own ribbon
+icon (a date range), a button in the board's toolbar, a settings button, and the
+**Open year overview** command.
 
 - **添加一个待办事项** appends an empty task and puts the cursor in it. Type and
   press `Enter` to commit, or `Esc` to discard. A task left empty is never
@@ -120,13 +122,20 @@ After changing code, reload Obsidian (or use a hot-reload plugin) and confirm th
 
 ## Installing into a vault
 
-Copy `main.js`, `manifest.json`, and `styles.css` into:
-
+```bash
+npm run build
+npm run deploy -- "<Vault>"
 ```
-<Vault>/.obsidian/plugins/weekly-schedule/
-```
 
-Then enable **Weekly Schedule** in **Settings → Community plugins**. For local development you can also symlink this repository folder to that path.
+`deploy` copies `main.js`, `manifest.json` and `styles.css` into
+`<Vault>/.obsidian/plugins/<plugin-id>/` and then verifies every copied file byte
+for byte, and that the stylesheet still carries the current design's markers. A
+half-finished copy is a real failure mode here: an old `styles.css` next to a new
+`main.js` renders the previous design with no error anywhere.
+
+Then enable **Weekly Schedule** in **Settings → Community plugins**, and reload
+the plugin (disable and re-enable it, or restart Obsidian) after any change —
+Obsidian reads `main.js` only when a plugin loads.
 
 ## Releasing
 

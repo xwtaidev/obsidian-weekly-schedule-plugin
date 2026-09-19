@@ -7,7 +7,7 @@ import {
 } from './settings';
 import { ScheduleStore } from './store';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
-import { WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
+import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
 import { weekFilePath } from './utils/date';
 import type { TAbstractFile } from 'obsidian';
 import type { Moment } from './utils/date';
@@ -30,8 +30,11 @@ export default class WeeklySchedulePlugin extends Plugin {
 			(leaf) => new WeeklyScheduleYearView(leaf, this),
 		);
 
-		this.addRibbonIcon('calendar-days', 'Open weekly schedule', () => {
+		this.addRibbonIcon('calendar-days', 'Open weekly board', () => {
 			void this.activateView();
+		});
+		this.addRibbonIcon(YEAR_VIEW_ICON, 'Open year overview', () => {
+			void this.activateYearView();
 		});
 
 		this.addCommand({

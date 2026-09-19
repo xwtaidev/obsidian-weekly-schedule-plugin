@@ -8,6 +8,10 @@ export default defineConfig(
 		'dist',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
+		// Node-side build tooling. It never ships, so the Obsidian rules that
+		// guard plugin source (no Node built-ins, no console, no hardcoded
+		// config path) do not apply to it.
+		'scripts',
 		'versions.json',
 		'main.js',
 		'package.json',
