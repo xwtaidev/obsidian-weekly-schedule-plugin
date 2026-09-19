@@ -33,6 +33,15 @@ icon (a date range), a button in the board's toolbar, a settings button, and the
 - The toolbar moves between weeks, returns to **本周**, toggles completed tasks,
   and opens the week's Markdown file.
 
+### Files written before year folders
+
+Files used to sit directly in the schedule folder (`weekly-schedule/2026-W12.md`).
+The plugin still *reads* them from there, so an existing vault does not look empty
+after updating. To move them into year folders, run the **Move week files into
+year folders** command. It only touches files in the schedule folder whose names
+look like `YYYY-Www.md`, so notes you keep there are left alone, and it reports
+what it moved.
+
 ## Jumping to a week
 
 Stepping with `‹` `›` is fine for a week or two, but not for reaching a distant
@@ -58,11 +67,20 @@ while you work.
 ## How tasks are stored
 
 One Markdown file per week, in the folder set in settings (default
-`weekly-schedule/`), named after its ISO week:
+`weekly-schedule/`), grouped into a folder per ISO year:
 
 ```
-weekly-schedule/2026-W12.md
+weekly-schedule/
+  2025/
+    2025-W52.md
+  2026/
+    2026-W01.md
+    2026-W12.md
 ```
+
+Grouping by year keeps a growing archive navigable by hand. The year folder is the
+week's **ISO** year, not its calendar year, so the week of 2025-12-29 — which is
+week 1 of 2026 — lives in `2026/`, matching how the year overview presents it.
 
 ```markdown
 # 2026-W12

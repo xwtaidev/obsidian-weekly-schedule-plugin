@@ -46,7 +46,7 @@ function weekStartOf(date: Moment): Moment {
  * The ISO year a week belongs to, taken from its Monday. 2025-12-29 is week 1 of
  * ISO year 2026, so this is deliberately not the calendar year of that Monday.
  */
-function isoYearOfWeek(monday: Moment): number {
+export function isoYearOfWeek(monday: Moment): number {
 	return isoWeekStart(isoYearOf(monday), isoWeekNumber(monday)).add(3, 'days').year();
 }
 
@@ -67,10 +67,52 @@ export function weekKey(date: Moment): string {
 	return `${isoYearOfWeek(monday)}-W${String(isoWeekNumber(monday)).padStart(2, '0')}`;
 }
 
+/**
+ * Vault path of the file holding a week, grouped by ISO year:
+ * `weekly-schedule/2026/2026-W12.md`. A year folder keeps a growing archive
+ * navigable, and matches the year shown in the year overview.
+ */
 export function weekFilePath(folder: string, date: Moment): string {
+	const directory = normalizeFolder(folder);
+	const key = weekKey(date);
+	const year = isoYearOfWeek(weekStartOf(date));
+	const fileName = `${key}.md`;
+	return directory.length > 0 ? `${directory}/${year}/${fileName}` : `${year}/${fileName}`;
+}
+
+/**
+ * Where a week's file lived before year folders were introduced:
+ * `weekly-schedule/2026-W12.md`. Only used to find files that have not been
+ * migrated yet, so an existing vault keeps working.
+ */
+export function legacyWeekFilePath(folder: string, date: Moment): string {
 	const directory = normalizeFolder(folder);
 	const fileName = `${weekKey(date)}.md`;
 	return directory.length > 0 ? `${directory}/${fileName}` : fileName;
+}
+
+/**
+ * Parses a `YYYY-Www` file stem into the ISO year and week number.
+ *
+ * The week may be one or two digits: the plugin always writes two, but accepting
+ * one means a hand-renamed `2026-W3.md` is still recognised on migration instead
+ * of being quietly left behind in the old layout.
+ */
+export function parseWeekFileStem(stem: string): { isoYear: number; week: number } | null {
+	const match = /^(\d{4})-W(\d{1,2})$/.exec(stem);
+	if (!match) {
+		return null;
+	}
+	const week = Number(match[2]);
+	if (week < 1 || week > 53) {
+		return null;
+	}
+	return { isoYear: Number(match[1]), week };
+}
+
+/** The canonical file name for an ISO year and week, e.g. `2026-W03.md`. */
+export function weekFileName(isoYear: number, week: number): string {
+	return `${isoYear}-W${String(week).padStart(2, '0')}.md`;
 }
 
 export function folderOf(path: string): string {

@@ -1,10 +1,16 @@
-import { Plugin, moment } from 'obsidian';
+import { Notice, Plugin, moment } from 'obsidian';
 import { VIEW_TYPE_WEEKLY_SCHEDULE, VIEW_TYPE_WEEKLY_SCHEDULE_YEAR } from './constants';
 import {
 	DEFAULT_SETTINGS,
 	WeeklyScheduleSettings,
 	WeeklyScheduleSettingTab,
 } from './settings';
+import {
+	applyYearFolders,
+	describeYearFolderMove,
+	notifyYearFolderResult,
+	planYearFolders,
+} from './migrate';
 import { ScheduleStore } from './store';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
@@ -47,6 +53,12 @@ export default class WeeklySchedulePlugin extends Plugin {
 			id: 'open-year-overview',
 			name: 'Open year overview',
 			callback: () => void this.activateYearView(),
+		});
+
+		this.addCommand({
+			id: 'move-weeks-into-year-folders',
+			name: 'Move week files into year folders',
+			callback: () => void this.moveWeeksIntoYearFolders(),
 		});
 
 		this.addCommand({
@@ -141,6 +153,27 @@ export default class WeeklySchedulePlugin extends Plugin {
 
 		await this.activateView();
 		await this.viewOf()?.setWeekStart(weekStart);
+	}
+
+	/**
+	 * Moves week files that sit directly in the schedule folder into per-year
+	 * folders. Writes are flushed first so the move cannot race a pending save,
+	 * and the store is invalidated afterwards because every path changed.
+	 */
+	private async moveWeeksIntoYearFolders(): Promise<void> {
+		await this.store.flushAll();
+
+		const moves = planYearFolders(this.app.vault, this.settings.folder);
+		if (moves.length === 0) {
+			new Notice(describeYearFolderMove(moves, false));
+			return;
+		}
+
+		const { moved, failed } = await applyYearFolders(this.app.vault, moves);
+		await this.store.invalidate();
+		await this.viewOf()?.refresh();
+		await this.yearViewOf()?.refresh();
+		notifyYearFolderResult(moved.length, failed.length);
 	}
 
 	/** Vault path of the file backing the week that starts at `date`. */

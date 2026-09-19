@@ -1,10 +1,35 @@
 import { TFile, TFolder } from 'obsidian';
 import { SAVE_DEBOUNCE_MS } from './constants';
-import { folderOf } from './utils/date';
+import { folderOf, parseWeekFileStem } from './utils/date';
 import { parseSchedule, serializeSchedule } from './markdown';
 import { debounce } from './utils/helpers';
 import type { Vault } from 'obsidian';
 import type { WeekSchedule } from './types';
+
+/**
+ * The pre-year-folder location of a week's file, derived from its current path:
+ * `weekly-schedule/2026/2026-W12.md` -> `weekly-schedule/2026-W12.md`.
+ *
+ * Deriving it keeps the store's API unchanged: callers only ever deal with the
+ * canonical path, and the fallback is an implementation detail of reading.
+ */
+function legacyPathFor(path: string): string | null {
+	const slash = path.lastIndexOf('/');
+	const fileName = path.slice(slash + 1);
+	const stem = fileName.endsWith('.md') ? fileName.slice(0, -3) : fileName;
+	const parsed = parseWeekFileStem(stem);
+	if (parsed === null) {
+		return null;
+	}
+	const folder = folderOf(path);
+	if (folder.length === 0) {
+		return fileName;
+	}
+	// The year folder is the innermost one; drop exactly that one segment.
+	const parentSlash = folder.lastIndexOf('/');
+	const outer = parentSlash === -1 ? '' : folder.slice(0, parentSlash);
+	return outer.length > 0 ? `${outer}/${fileName}` : fileName;
+}
 
 interface CacheEntry {
 	schedule: WeekSchedule;
@@ -145,15 +170,31 @@ export class ScheduleStore {
 
 	private async read(path: string): Promise<string> {
 		const file = this.vault.getFileByPath(path);
-		if (!(file instanceof TFile)) {
-			return '';
+		if (file instanceof TFile) {
+			try {
+				return await this.vault.read(file);
+			} catch (error) {
+				console.error(`Weekly schedule: could not read ${path}`, error);
+				return '';
+			}
 		}
-		try {
-			return await this.vault.read(file);
-		} catch (error) {
-			console.error(`Weekly schedule: could not read ${path}`, error);
-			return '';
+
+		// A week's file used to live directly in the schedule folder. Read it from
+		// there when it has not been migrated, so introducing year folders did not
+		// make an existing vault look empty. The first edit writes to the new path.
+		const legacy = legacyPathFor(path);
+		if (legacy !== null) {
+			const old = this.vault.getFileByPath(legacy);
+			if (old instanceof TFile) {
+				try {
+					return await this.vault.read(old);
+				} catch (error) {
+					console.error(`Weekly schedule: could not read ${legacy}`, error);
+				}
+			}
 		}
+
+		return '';
 	}
 
 	private async persist(path: string): Promise<void> {
