@@ -414,8 +414,10 @@ inside each day.
    The column count is declared on the container, not on the grid: the view sets
    it as an inline style on the container, and a declaration here would win over
    an inherited value. */
+/* NOTE: --ws-year-columns, --ws-year-rows and --ws-year-tile are set by the view
+   as inline styles on this element. Do not declare them here: a declaration on
+   the same element wins over the inline value and silently freezes the layout. */
 .weekly-schedule-year-container {
-	--ws-year-columns: 10;
 
 	/* Heat ramp: completion is shown by fill depth. Six steps rather than five,
 	   because the ramp crosses a band where neither dark nor white text clears
@@ -442,36 +444,67 @@ inside each day.
 
 .weekly-schedule-year-grid {
 	display: grid;
-	grid-template-columns: repeat(var(--ws-year-columns), minmax(0, 1fr));
+	grid-template-columns: repeat(var(--ws-year-columns, 10), minmax(0, 1fr));
+	/* Row height is set by the view to the column width, which makes every tile a
+	   square without asking `aspect-ratio` to do it — see the note on the tile.
+	   The fallbacks are literals, not custom properties: declaring --ws-year-tile
+	   here would shadow the inline value the view sets on this very element, which
+	   is exactly the trap --ws-year-columns fell into. */
+	grid-template-rows: repeat(var(--ws-year-rows, 6), var(--ws-year-tile, 120px));
+	align-items: stretch;
 	gap: 10px;
 	padding: 14px 18px 6px;
 	outline: none;
 }
 
 .weekly-schedule-year-tile {
-	/* Lets the tile drop details based on its own width, whatever the pane does. */
-	container-type: inline-size;
+	/* The tile is only a positioning context now. All of its appearance lives in
+	   `.weekly-schedule-year-inner`, which is absolutely positioned to fill the
+	   grid area — so no rule about button boxes can change the shape: a 30px width
+	   once beat a 130.8px track here, and `aspect-ratio` once failed to add height.
+	   An absolutely positioned box with `inset: 0` is given its size by the grid
+	   area, not by its own content. */
+	position: relative;
+	align-self: stretch;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	text-align: start;
+	appearance: none;
+}
 
+.weekly-schedule-year-tile:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+
+/* Fills the grid area and carries the whole card look. Because it is absolutely
+   positioned with `inset: 0`, the grid area decides its size — not its content,
+   and not any rule about button boxes. */
+.weekly-schedule-year-inner {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
-	/* Belt and braces: the tile must fill its grid track, because `aspect-ratio`
-	   derives the height from the width. In one report it computed to 30x30 inside
-	   a 130.8px track — a 30px width won over the track. Nothing in this stylesheet
-	   sets a width, so an app- or theme-level button rule was supplying one; stating
-	   it here means the layout no longer depends on whatever that rule is. */
-	width: 100%;
-	aspect-ratio: 1 / 1;
 	gap: 2px;
-	min-width: 0;
 	padding: 9px 10px;
+	overflow: hidden;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
-	background: transparent;
-	box-shadow: none;
-	color: var(--text-muted);
-	text-align: start;
-	cursor: pointer;
+	background: var(--ws-heat-current, transparent);
+	color: inherit;
+	/* Lets the tile drop details based on its own width, whatever the pane does. */
+	container-type: inline-size;
 	transition:
 		border-color 120ms ease,
 		background-color 120ms ease,
@@ -479,24 +512,24 @@ inside each day.
 		transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.weekly-schedule-year-tile:hover {
+.weekly-schedule-year-tile:hover .weekly-schedule-year-inner {
 	border-color: var(--background-modifier-border-hover);
 	background: var(--background-modifier-hover);
-	color: var(--text-normal);
 }
 
-.weekly-schedule-year-tile:active {
+.weekly-schedule-year-tile:active .weekly-schedule-year-inner {
 	transform: scale(0.98);
 }
 
+
 /* Keyboard position. A faint ring, not the accent, so it cannot be mistaken
    for the week the board is showing. */
-.weekly-schedule-year-tile.is-selected {
+.weekly-schedule-year-tile.is-selected .weekly-schedule-year-inner {
 	box-shadow: inset 0 0 0 1px var(--background-modifier-border-hover);
 }
 
 /* The week currently open in the board. */
-.weekly-schedule-year-tile.is-open {
+.weekly-schedule-year-tile.is-open .weekly-schedule-year-inner {
 	border-color: var(--interactive-accent);
 }
 
@@ -510,6 +543,11 @@ inside each day.
    it here would ship text under the 3:1 floor in light themes. */
 .weekly-schedule-year-tile.is-future .weekly-schedule-year-week {
 	font-weight: 500;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-year-tile.is-empty .weekly-schedule-year-inner,
+.weekly-schedule-year-tile.is-future .weekly-schedule-year-inner {
 	color: var(--text-muted);
 }
 
@@ -548,15 +586,34 @@ inside each day.
 
 /* The dash that marks an empty week is decoration, not content: it is drawn
    with opacity so it is exempt from the text contrast floor. */
+/* The dash is decoration. Its colour is set on the element itself so the result
+   is deterministic, but it is deliberately faint: it carries no information a
+   user needs, since an empty week also has no percentage. */
 .weekly-schedule-year-tile.is-empty .weekly-schedule-year-meta {
+	color: var(--text-faint);
+	opacity: 1;
+}
+
+/* Prefer the clearer of the two text colours when the theme makes --text-faint
+   unreadable. Obsidian's own light theme defines it below 3:1. */
+.theme-light .weekly-schedule-year-tile.is-empty .weekly-schedule-year-meta,
+.theme-light .weekly-schedule-year-tile.is-future .weekly-schedule-year-inner {
 	color: var(--text-muted);
-	opacity: 0.6;
 }
 
 /* The top two tiers carry white text: on their fill, the normal ink measures
    below 4.5:1 in both themes. */
-.weekly-schedule-year-tile[data-heat="4"],
-.weekly-schedule-year-tile[data-heat="5"] {
+/* The two heaviest fills carry white text: on them, the normal ink measures
+   below 4.5:1 in both themes. This has to name the text elements, because they
+   set their own colour and would otherwise ignore the inherited one. */
+.weekly-schedule-year-inner[data-heat="4"],
+.weekly-schedule-year-inner[data-heat="5"],
+.weekly-schedule-year-inner[data-heat="4"] .weekly-schedule-year-week,
+.weekly-schedule-year-inner[data-heat="5"] .weekly-schedule-year-week,
+.weekly-schedule-year-inner[data-heat="4"] .weekly-schedule-year-range,
+.weekly-schedule-year-inner[data-heat="5"] .weekly-schedule-year-range,
+.weekly-schedule-year-inner[data-heat="4"] .weekly-schedule-year-meta,
+.weekly-schedule-year-inner[data-heat="5"] .weekly-schedule-year-meta {
 	color: var(--ws-heat-ink-strong);
 }
 

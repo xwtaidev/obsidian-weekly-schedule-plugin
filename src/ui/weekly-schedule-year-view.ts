@@ -20,6 +20,8 @@ const TILE_MIN_WIDTH = 118;
 const MIN_COLUMNS = 5;
 const MAX_COLUMNS = 10;
 const GRID_GAP = 10;
+/** Grid padding: 18px each side, and 36px total as used in the fit above. */
+const GRID_PADDING = 36;
 /** Grid padding (36px) plus the scrollbar Obsidian may keep on the pane. */
 const PANE_SLACK = 62;
 
@@ -175,19 +177,20 @@ export class WeeklyScheduleYearView extends ItemView {
 		if (cell.stats.total === 0) {
 			meta.setText('—');
 			tile.removeAttribute('aria-label');
-			tile.removeAttribute('data-heat');
-			tile.style.removeProperty('background');
+			tile.querySelector<HTMLElement>('.weekly-schedule-year-inner')?.removeAttribute('data-heat');
+			tile.style.removeProperty('--ws-heat-current');
 			return;
 		}
 
 		meta.setText(`${cell.stats.percent ?? 0}%`);
-		if (this.isPastWeek(cell)) {
+		const inner = tile.querySelector<HTMLElement>('.weekly-schedule-year-inner');
+		if (this.isPastWeek(cell) && inner) {
 			const step = heatStep(cell.stats.percent);
-			tile.dataset.heat = String(step);
-			tile.style.setProperty('background', `var(--ws-heat-${step})`);
+			inner.dataset.heat = String(step);
+			tile.style.setProperty('--ws-heat-current', `var(--ws-heat-${step})`);
 		} else {
-			tile.removeAttribute('data-heat');
-			tile.style.removeProperty('background');
+			inner?.removeAttribute('data-heat');
+			tile.style.removeProperty('--ws-heat-current');
 		}
 		tile.setAttribute(
 			'aria-label',
@@ -246,6 +249,15 @@ export class WeeklyScheduleYearView extends ItemView {
 		}
 		this.columns = columns;
 		this.contentEl.style.setProperty('--ws-year-columns', String(columns));
+
+		// Give each row the exact width of a column, which is what makes a tile a
+		// square. Deriving it in CSS was tried and rejected: `aspect-ratio` did not
+		// produce height in the app, and `width: fit-content` from an app-level
+		// button rule beat `justify-self: stretch`.
+		const rows = Math.ceil(this.cells.length / columns);
+		const columnWidth = (this.contentEl.clientWidth - GRID_PADDING - (columns - 1) * GRID_GAP) / columns;
+		this.contentEl.style.setProperty('--ws-year-rows', String(rows));
+		this.contentEl.style.setProperty('--ws-year-tile', `${Math.floor(columnWidth)}px`);
 	}
 
 	/** Column count the grid was last laid out with, for keyboard navigation. */
@@ -281,13 +293,16 @@ export class WeeklyScheduleYearView extends ItemView {
 			tile.toggleClass('is-selected', index === this.selectedIndex);
 			tile.dataset.index = String(index);
 
-			tile.createDiv({ cls: 'weekly-schedule-year-week', text: `W${cell.week}` });
-			tile.createDiv({
+			// The tile itself is the ratio box (a ::before owns its square), so all
+			// content lives in this inner element.
+			const inner = tile.createDiv({ cls: 'weekly-schedule-year-inner' });
+			inner.createDiv({ cls: 'weekly-schedule-year-week', text: `W${cell.week}` });
+			inner.createDiv({
 				cls: 'weekly-schedule-year-range',
 				text: formatWeekRange(cell.start),
 			});
 
-			const meta = tile.createDiv({ cls: 'weekly-schedule-year-meta' });
+			const meta = inner.createDiv({ cls: 'weekly-schedule-year-meta' });
 			if (cell.stats.total === 0) {
 				meta.setText('—');
 			} else {
@@ -300,8 +315,8 @@ export class WeeklyScheduleYearView extends ItemView {
 				// a week that has not happened yet has no completion to show.
 				if (this.isPastWeek(cell)) {
 					const step = heatStep(cell.stats.percent);
-					tile.dataset.heat = String(step);
-					tile.style.setProperty('background', `var(--ws-heat-${step})`);
+					inner.dataset.heat = String(step);
+					tile.style.setProperty('--ws-heat-current', `var(--ws-heat-${step})`);
 				}
 			}
 
