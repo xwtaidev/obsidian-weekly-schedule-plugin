@@ -1,7 +1,7 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import { DEFAULT_FOLDER, WEEK_START_OPTIONS } from './constants';
 import { normalizeFolder } from './utils/helpers';
-import type { App, SettingDefinitionItem } from 'obsidian';
+import type { App } from 'obsidian';
 import type WeeklySchedulePlugin from './main';
 
 export interface WeeklyScheduleSettings {
@@ -16,9 +16,19 @@ export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
 	weekStartsOn: 1,
 };
 
-const FOLDER_KEY = 'folder';
-const WEEK_START_KEY = 'weekStartsOn';
-
+/**
+ * Settings tab.
+ *
+ * Built with the imperative `Setting` API rather than the declarative one added
+ * in Obsidian 1.13. The declarative API would put these options into Obsidian's
+ * settings search, which is a real nicety, but it lifts minAppVersion to 1.13.0
+ * and so shuts out everyone on an older release. Two settings and three buttons
+ * do not justify that.
+ */
+// The declarative settings API would add these options to Obsidian's settings
+// search, but it requires Obsidian 1.13 and would raise minAppVersion with it.
+// The lint rule that asks for it must not be disabled (the config blocks that),
+// so it reports a warning here; it is a deliberate trade-off, not an oversight.
 export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	plugin: WeeklySchedulePlugin;
 
@@ -27,86 +37,78 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	/**
-	 * Declarative settings, so the board's options are reachable from
-	 * Obsidian's settings search.
-	 */
-	getSettingDefinitions(): SettingDefinitionItem[] {
-		return [
-			{
-				name: 'Schedule folder',
-				desc: 'Vault folder for the weekly files. The plugin writes one file per week, named after its ISO week, for example 2026-W12.md.',
-				aliases: ['path', 'directory', 'weekly files'],
-				control: {
-					type: 'text',
-					key: FOLDER_KEY,
-					placeholder: DEFAULT_FOLDER,
-				},
-			},
-			{
-				name: 'Week starts on',
-				desc: 'Which day the board starts with. Week numbers in file names stay ISO-based either way.',
-				control: {
-					type: 'dropdown',
-					key: WEEK_START_KEY,
-					options: Object.fromEntries(
-						WEEK_START_OPTIONS.map((option) => [String(option.value), option.label]),
-					),
-				},
-			},
-			{
-				name: 'Open board',
-				desc: 'Open the weekly board in a tab, or focus it when it is already open.',
-				action: (el) => {
-					new Setting(el).addButton((button) =>
-						button.setButtonText('Open board').onClick(() => {
-							void this.plugin.activateView();
-						}),
-					);
-				},
-			},
-			{
-				name: 'Open year overview',
-				desc: 'Open the year overview, where a week can be picked from a whole year at once.',
-				action: (el) => {
-					new Setting(el).addButton((button) =>
-						button.setButtonText('Open overview').onClick(() => {
-							void this.plugin.activateYearView();
-						}),
-					);
-				},
-			},
-		];
-	}
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
 
-	getControlValue(key: string): unknown {
-		if (key === FOLDER_KEY) {
-			return this.plugin.settings.folder;
-		}
-		if (key === WEEK_START_KEY) {
-			return String(this.plugin.settings.weekStartsOn);
-		}
-		return undefined;
-	}
+		new Setting(containerEl)
+			.setName('Schedule folder')
+			.setDesc(
+				'Vault folder for the weekly files. The plugin writes one file per week, grouped in a folder per year. Example: weekly-schedule/2026/2026-W12.md',
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_FOLDER)
+					.setValue(this.plugin.settings.folder)
+					.onChange(async (value) => {
+						const folder = normalizeFolder(value);
+						if (folder === this.plugin.settings.folder) {
+							return;
+						}
+						this.plugin.settings.folder = folder;
+						await this.plugin.saveSettings();
+						await this.plugin.handleSettingsChange();
+					}),
+			);
 
-	async setControlValue(key: string, value: unknown): Promise<void> {
-		if (key === FOLDER_KEY) {
-			const folder = normalizeFolder(typeof value === 'string' ? value : '');
-			if (folder === this.plugin.settings.folder) {
-				return;
-			}
-			this.plugin.settings.folder = folder;
-		} else if (key === WEEK_START_KEY) {
-			const weekStartsOn = Number(value);
-			if (weekStartsOn === this.plugin.settings.weekStartsOn) {
-				return;
-			}
-			this.plugin.settings.weekStartsOn = weekStartsOn;
-		} else {
-			return;
-		}
+		new Setting(containerEl)
+			.setName('Week starts on')
+			.setDesc(
+				'Which day the board starts with. Week numbers in file names are unaffected by this.',
+			)
+			.addDropdown((dropdown) => {
+				for (const option of WEEK_START_OPTIONS) {
+					dropdown.addOption(String(option.value), option.label);
+				}
+				dropdown.setValue(String(this.plugin.settings.weekStartsOn));
+				dropdown.onChange(async (value) => {
+					const weekStartsOn = Number(value);
+					if (weekStartsOn === this.plugin.settings.weekStartsOn) {
+						return;
+					}
+					this.plugin.settings.weekStartsOn = weekStartsOn;
+					await this.plugin.saveSettings();
+					await this.plugin.handleSettingsChange();
+				});
+			});
 
-		await this.plugin.saveSettings();
-		await this.plugin.handleSettingsChange();
+		new Setting(containerEl)
+			.setName('Open board')
+			.setDesc('Open the weekly board in a tab, or focus it when it is already open.')
+			.addButton((button) =>
+				button.setButtonText('Open board').onClick(() => {
+					void this.plugin.activateView();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Open year overview')
+			.setDesc('Pick a week from a whole year at once.')
+			.addButton((button) =>
+				button.setButtonText('Open overview').onClick(() => {
+					void this.plugin.activateYearView();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName('Year folders')
+			.setDesc(
+				'Move week files that sit directly in the schedule folder into a folder per year.',
+			)
+			.addButton((button) =>
+				button.setButtonText('Move files').onClick(() => {
+					void this.plugin.moveWeeksIntoYearFolders();
+				}),
+			);
 	}
 }

@@ -159,8 +159,10 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 * Moves week files that sit directly in the schedule folder into per-year
 	 * folders. Writes are flushed first so the move cannot race a pending save,
 	 * and the store is invalidated afterwards because every path changed.
+	 *
+	 * Public because the settings tab offers it as a button.
 	 */
-	private async moveWeeksIntoYearFolders(): Promise<void> {
+	async moveWeeksIntoYearFolders(): Promise<void> {
 		await this.store.flushAll();
 
 		const moves = planYearFolders(this.app.vault, this.settings.folder);

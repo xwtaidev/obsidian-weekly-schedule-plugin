@@ -125,9 +125,14 @@ src/
 
 ## Development
 
-Requires Node.js 18+ (LTS recommended). `minAppVersion` is 1.13.0, because the
-settings tab uses Obsidian's declarative settings API so the options appear in
-settings search.
+Requires Node.js 18+ (LTS recommended).
+
+`minAppVersion` is **1.5.7**, the oldest release whose API this plugin builds on
+(`Vault.getFileByPath`). The settings tab deliberately uses the imperative
+`Setting` API: the declarative API added in 1.13 would put these options into
+Obsidian's settings search, but it would raise the minimum to 1.13 and shut out
+everyone on an older release. The lint rule asking for it reports a warning, which
+is accepted on purpose — see the note in `src/settings.ts`.
 
 ```bash
 npm install        # install dependencies
@@ -213,8 +218,9 @@ searchable inside Obsidian.
 - `LICENSE` and a `README.md` are present (both are required).
 - No network calls, no telemetry — this plugin reads and writes only its own files
   in the vault.
-- `minAppVersion` is honest. It is currently `1.13.0` because the settings tab uses
-  the declarative settings API and the views use APIs added in 1.5.7.
+- `minAppVersion` is honest: `1.5.7`, the oldest release providing every API this
+  plugin calls. The `obsidianmd/no-unsupported-api` lint rule enforces this
+  against `manifest.json`, so lowering it without checking will fail `npm run lint`.
 - Install it into a **clean vault** from the built files and check that enabling,
   disabling and reloading the plugin leave nothing broken.
 - Review the [developer policies](https://docs.obsidian.md/Developer+policies) and

@@ -2,7 +2,7 @@
 	"id": "weekly-schedule",
 	"name": "Weekly Schedule",
 	"version": "0.1.0",
-	"minAppVersion": "1.13.0",
+	"minAppVersion": "1.5.7",
 	"description": "Plan and review your week inside Obsidian.",
 	"author": "xwtaidev",
 	"isDesktopOnly": false
