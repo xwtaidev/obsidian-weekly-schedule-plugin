@@ -14,6 +14,19 @@ import type { WeekStats } from '../store';
 
 export const YEAR_VIEW_ICON = 'calendar-range';
 
+/**
+ * Layout targets for the tile grid.
+ *
+ * 13 columns is the intended shape: about a quarter per row, four rows to a
+ * 52-week year. A narrow pane gives up columns so tiles keep their date range,
+ * but a wide pane never adds more, which would break that row structure.
+ */
+const TILE_MIN_WIDTH = 78;
+const MAX_COLUMNS = 13;
+const GRID_GAP = 6;
+/** Width of the scrollbar Obsidian may keep on the pane. */
+const PANE_SLACK = 26;
+
 /** Persisted with the workspace so the browsed year survives a restart. */
 interface YearViewState extends Record<string, unknown> {
 	isoYear?: number;
@@ -77,6 +90,13 @@ export class WeeklyScheduleYearView extends ItemView {
 		this.isOpen = true;
 		this.contentEl.addClass('weekly-schedule-year-container');
 		this.containerEl.addClass('weekly-schedule-leaf');
+
+		// Re-derive the column count whenever the pane is resized; the initial
+		// measurement happens at the end of renderBoard.
+		const observer = new ResizeObserver(() => this.updateColumns());
+		observer.observe(this.contentEl);
+		this.register(() => observer.disconnect());
+
 		await this.render();
 	}
 
@@ -195,6 +215,34 @@ export class WeeklyScheduleYearView extends ItemView {
 		this.renderBoard();
 	}
 
+	/**
+	 * Picks how many tiles go in a row.
+	 *
+	 * Driven by width only. Squeezing the column count to also fit the height was
+	 * tried and rejected: in a short pane it produced very wide tiles with clipped
+	 * date ranges, and losing columns costs more than letting the pane scroll.
+	 * The count is clamped so a tile is never narrower than its content needs.
+	 */
+	private updateColumns(): void {
+		const width = this.contentEl.clientWidth;
+		if (width === 0) {
+			return;
+		}
+
+		const usable = width - 36 - PANE_SLACK;
+		const byWidth = Math.floor((usable + GRID_GAP) / (TILE_MIN_WIDTH + GRID_GAP));
+		const columns = Math.max(1, Math.min(this.cells.length, MAX_COLUMNS, byWidth));
+
+		if (columns === this.columns) {
+			return;
+		}
+		this.columns = columns;
+		this.contentEl.style.setProperty('--ws-year-columns', String(columns));
+	}
+
+	/** Column count the grid was last laid out with, for keyboard navigation. */
+	private columns = 13;
+
 	private renderBoard(): void {
 		this.contentEl.empty();
 		this.renderToolbar();
@@ -208,7 +256,6 @@ export class WeeklyScheduleYearView extends ItemView {
 			startOfWeek(moment(), this.plugin.settings.weekStartsOn),
 		);
 		const openPath = this.plugin.activeBoardPath;
-
 		this.cells.forEach((cell, index) => {
 			const tile = this.boardEl?.createEl('button', {
 				cls: 'weekly-schedule-year-tile',
@@ -221,6 +268,8 @@ export class WeeklyScheduleYearView extends ItemView {
 			tile.toggleClass('is-current', dateKey(cell.start) === currentWeekStart);
 			tile.toggleClass('is-open', cell.path === openPath);
 			tile.toggleClass('is-empty', cell.stats.total === 0);
+			tile.toggleClass('is-past', this.isPastWeek(cell));
+			tile.toggleClass('is-future', !this.isPastWeek(cell) && dateKey(cell.start) !== currentWeekStart);
 			tile.toggleClass('is-selected', index === this.selectedIndex);
 			tile.dataset.index = String(index);
 
@@ -258,6 +307,11 @@ export class WeeklyScheduleYearView extends ItemView {
 				this.updateSelection();
 			});
 		});
+
+		this.renderSummary();
+
+		// Now that the grid exists, size it to the pane.
+		this.updateColumns();
 	}
 
 	private renderToolbar(): void {
@@ -267,15 +321,42 @@ export class WeeklyScheduleYearView extends ItemView {
 		nav.createDiv({ cls: 'weekly-schedule-week-label', text: `${this.isoYear} 年` });
 		this.addIconButton(nav, 'chevron-right', '下一年', () => void this.shiftYear(1));
 
+		// Only navigation and its action live here. The totals go in a footer,
+		// because a third child in a space-between toolbar floats in the middle.
 		const actions = toolbar.createDiv({ cls: 'weekly-schedule-actions' });
 		this.addTextButton(actions, '本年', () => void this.goToCurrentYear());
+	}
 
-		const total = this.cells.reduce((sum, cell) => sum + cell.stats.total, 0);
-		const done = this.cells.reduce((sum, cell) => sum + cell.stats.done, 0);
-		const summary = toolbar.createDiv({ cls: 'weekly-schedule-year-summary' });
-		summary.setText(
-			total === 0 ? '本年还没有待办' : `共 ${total} 项 · 已完成 ${done} 项（${Math.round((done / total) * 100)}%）`,
-		);
+	/**
+	 * Year totals, below the grid. The percentage counts only weeks that are
+	 * already over: a year in progress always reads low otherwise, which makes
+	 * the number useless for judging how the year is going.
+	 */
+	private renderSummary(): void {
+		const summary = this.contentEl.createDiv({ cls: 'weekly-schedule-year-summary' });
+
+		const past = this.cells.filter((cell) => this.isPastWeek(cell));
+		const total = past.reduce((sum, cell) => sum + cell.stats.total, 0);
+		const done = past.reduce((sum, cell) => sum + cell.stats.done, 0);
+		const withTasks = past.filter((cell) => cell.stats.total > 0).length;
+
+		if (total === 0) {
+			summary.setText('本年还没有已结束的待办');
+			return;
+		}
+
+		summary.createSpan({ text: `已结束 ${withTasks} 周 · 共 ${total} 项 · 完成 ` });
+		summary.createSpan({
+			cls: 'weekly-schedule-year-summary-value',
+			text: `${Math.round((done / total) * 100)}%`,
+		});
+		summary.createSpan({ text: `（${done}/${total}）` });
+	}
+
+	/** Whether a week has finished, i.e. it is not the current or a future week. */
+	private isPastWeek(cell: WeekCell): boolean {
+		const currentStart = startOfWeek(moment(), this.plugin.settings.weekStartsOn);
+		return dateKey(cell.start) < dateKey(currentStart);
 	}
 
 	private addIconButton(
@@ -304,12 +385,11 @@ export class WeeklyScheduleYearView extends ItemView {
 	}
 
 	private handleKeydown(event: KeyboardEvent): void {
-		const columns = 13;
 		const deltas: Record<string, number> = {
 			ArrowLeft: -1,
 			ArrowRight: 1,
-			ArrowUp: -columns,
-			ArrowDown: columns,
+			ArrowUp: -this.columns,
+			ArrowDown: this.columns,
 		};
 
 		const delta = deltas[event.key];

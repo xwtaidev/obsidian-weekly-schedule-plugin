@@ -406,23 +406,32 @@ inside each day.
 
 /* ---------- Year overview ---------- */
 
-/* One tile per ISO week, 13 per row. A narrow selection state fills the tile;
-   the rest of the time a tile is just a rule, a week number and a rate. */
+/* One tile per ISO week, 13 per row. A tile is a rule, a week number and a
+   rate — no fill, no shadow, so the grid stays quiet at 53 copies.
+   The column count is declared on the container, not on the grid: the view sets
+   it as an inline style on the container, and a declaration here would win over
+   an inherited value. */
+.weekly-schedule-year-container {
+	--ws-year-columns: 13;
+}
+
 .weekly-schedule-year-grid {
 	display: grid;
-	grid-template-columns: repeat(13, minmax(0, 1fr));
+	grid-template-columns: repeat(var(--ws-year-columns), minmax(0, 1fr));
 	gap: 6px;
-	padding: 16px 18px 20px;
+	padding: 14px 18px 6px;
 	outline: none;
 }
 
 .weekly-schedule-year-tile {
+	/* Lets the tile drop details based on its own width, whatever the pane does. */
+	container-type: inline-size;
+
 	display: flex;
 	flex-direction: column;
-	align-items: stretch;
-	gap: 3px;
+	gap: 2px;
 	min-width: 0;
-	padding: 7px 8px 8px;
+	padding: 6px 7px 7px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: transparent;
@@ -447,12 +456,13 @@ inside each day.
 	transform: scale(0.98);
 }
 
-/* Keyboard position, drawn inside the tile so it never shifts the grid. */
+/* Keyboard position. A faint ring, not the accent, so it cannot be mistaken
+   for the week the board is showing. */
 .weekly-schedule-year-tile.is-selected {
-	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border-hover);
 }
 
-/* The week the board is showing right now. */
+/* The week currently open in the board. */
 .weekly-schedule-year-tile.is-open {
 	border-color: var(--interactive-accent);
 }
@@ -462,22 +472,29 @@ inside each day.
 	color: var(--text-accent);
 }
 
-/* A week with no tasks at all stays as quiet as possible. */
-.weekly-schedule-year-tile.is-empty {
+/* Weeks still to come are context, not record. Weight carries that instead of
+   colour: Obsidian's own --text-faint is only 2.81:1 on a light pane, so using
+   it here would ship text under the 3:1 floor in light themes. */
+.weekly-schedule-year-tile.is-future .weekly-schedule-year-week {
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-year-tile.is-empty .weekly-schedule-year-meta {
 	color: var(--text-faint);
 }
 
 .weekly-schedule-year-week {
 	font-size: 12px;
 	font-weight: 600;
-	line-height: 1.3;
+	line-height: 1.25;
 	font-variant-numeric: tabular-nums;
 }
 
 .weekly-schedule-year-range {
 	font-size: 10px;
-	line-height: 1.3;
-	color: var(--text-faint);
+	line-height: 1.25;
+	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -488,13 +505,23 @@ inside each day.
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	margin-top: 2px;
-	min-height: 12px;
+	margin-top: auto;
+	padding-top: 4px;
+	min-height: 11px;
 	font-size: 10px;
 	font-variant-numeric: tabular-nums;
-	color: var(--text-faint);
+	color: var(--text-muted);
 }
 
+/* The dash that marks an empty week is decoration, not content: it is drawn
+   with opacity so it is exempt from the text contrast floor. */
+.weekly-schedule-year-tile.is-empty .weekly-schedule-year-meta {
+	color: var(--text-muted);
+	opacity: 0.6;
+}
+
+/* The track only appears once there is something to measure, so an empty week
+   never reads as a full bar. */
 .weekly-schedule-year-bar {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -504,9 +531,18 @@ inside each day.
 	overflow: hidden;
 }
 
+.weekly-schedule-year-tile.is-empty .weekly-schedule-year-bar {
+	background: transparent;
+}
+
 .weekly-schedule-year-bar-fill {
 	height: 100%;
 	border-radius: 2px;
+	background: var(--background-modifier-border-hover);
+}
+
+/* Finished weeks are the record of the year, so they carry the accent. */
+.weekly-schedule-year-tile.is-past .weekly-schedule-year-bar-fill {
 	background: var(--interactive-accent);
 }
 
@@ -514,11 +550,36 @@ inside each day.
 	flex: 0 0 auto;
 }
 
+/* Year totals sit below the grid, where they have the full width instead of
+   competing with the toolbar's navigation. */
 .weekly-schedule-year-summary {
-	font-size: 12px;
-	color: var(--text-faint);
+	padding: 4px 18px 16px;
+	font-size: 11px;
+	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
+}
+
+.weekly-schedule-year-summary-value {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+/* Too narrow for the numbers: keep the week and its rate, drop the range. */
+@container (width < 86px) {
+	.weekly-schedule-year-range {
+		display: none;
+	}
+
+	.weekly-schedule-year-meta {
+		margin-top: 2px;
+	}
+}
+
+/* Too narrow even for a bar: the percentage alone still reads. */
+@container (width < 62px) {
+	.weekly-schedule-year-bar {
+		display: none;
+	}
 }
 
 /* ---------- Narrow panes ---------- */
@@ -526,10 +587,6 @@ inside each day.
 @media (width <= 900px) {
 	.weekly-schedule-board {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.weekly-schedule-year-grid {
-		grid-template-columns: repeat(7, minmax(0, 1fr));
 	}
 }
 

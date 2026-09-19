@@ -37,8 +37,11 @@ completion rate.
 - `←` `→` `↑` `↓` move between tiles, `Enter` opens the selected one.
 - `‹` `›` in that view change the ISO year, so weeks on either side of new year
   stay with the year they belong to.
-- A tile marked with the accent border is the week the board is showing; the one
-  with the accent week number is the current week.
+- A tile with an accent border is the week the board is showing; the one with an
+  accent week number is the current week. Completed weeks carry the accent bar,
+  weeks still to come stay neutral, and empty weeks show a dash.
+- The column count follows the pane: 13 across a wide pane, fewer in a narrow
+  one, so the date range on a tile is never clipped.
 
 The year view is a separate pane, so it can sit beside the board and stay open
 while you work.
