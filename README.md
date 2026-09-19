@@ -1,73 +1,44 @@
 # Weekly Schedule
 
-Plan and review your week inside Obsidian.
+Plan and review your week inside Obsidian. One board per week, every day split into
+four priority quadrants, and a whole year you can scan at a glance.
 
-The plugin adds a weekly board: three days per row, three rows (3 + 3 + 1), and
-four priority cells per day based on importance and urgency. Each cell holds a
-task list and an **添加一个待办事项** button.
+![The weekly board: seven days across three rows, each with four priority quadrants](assets/board-dark.png)
 
-The design is deliberately flat: hierarchy comes from thin rules, spacing and a
-muted colour per priority — no shadows and no nested card borders. Each day
-shows its date and how many tasks are still open. Hovering a task reveals its
-reorder and delete controls.
+Each day holds four cells — important and urgent, not important but urgent,
+important but not urgent, and neither. Every cell has a **添加一个待办事项** button
+that appends a task and puts the cursor in it. Press `Enter` to commit, `Esc` to
+discard; a task left empty is never written to the file.
 
-Both views size themselves from the pane they are in rather than from the window,
-because an Obsidian pane is often a sidebar or half a split. The board keeps three
-days per row and gives up columns on a narrow pane; the year overview fits up to
-10 tiles per row the same way.
+Both views follow your Obsidian theme; the screenshots above and below are dark
+and light respectively. Expand for the board in light mode and the year overview
+in dark mode:
 
-## Using the board
+<details>
+<summary>Both views in the other theme</summary>
 
-Open it from the ribbon calendar icon, the **Open weekly board** command, or
-**Settings → Weekly Schedule → Open board**. The year overview has its own ribbon
-icon (a date range), a button in the board's toolbar, a settings button, and the
-**Open year overview** command.
+![The weekly board in light mode](assets/board-light.png)
 
-- **添加一个待办事项** appends an empty task and puts the cursor in it. Type and
-  press `Enter` to commit, or `Esc` to discard. A task left empty is never
-  written to the file.
-- Click a checkbox to mark a task done. Tasks completed while **隐藏已完成** is
-  active stay in the file and reappear when completed tasks are shown again.
-- Hover a task for its `↑` `↓` and delete controls; right-click it for the same
-  actions as a menu.
-- The toolbar moves between weeks, returns to **本周**, toggles completed tasks,
-  and opens the week's Markdown file.
+![The year overview in dark mode](assets/year-dark.png)
 
-### Files written before year folders
+</details>
 
-Files used to sit directly in the schedule folder (`weekly-schedule/2026-W12.md`).
-The plugin still *reads* them from there, so an existing vault does not look empty
-after updating. To move them into year folders, run the **Move week files into
-year folders** command. It only touches files in the schedule folder whose names
-look like `YYYY-Www.md`, so notes you keep there are left alone, and it reports
-what it moved.
+## Jump to any week
 
-## Jumping to a week
+Stepping a week at a time is fine for a week or two, and useless for reaching a
+distant one. **Open year overview** shows the whole year: one tile per ISO week,
+each with its week number, date range and completion rate. Select a tile to open
+that week; `←` `→` `↑` `↓` move between tiles and `Enter` opens one.
 
-Stepping with `‹` `›` is fine for a week or two, but not for reaching a distant
-one. **Open year overview** (`weekly-schedule:open-year-overview`) shows the whole
-year: one tile per ISO week, 13 per row, each with its week number, date range and
-completion rate.
+![The year overview: 53 week tiles shaded by completion rate](assets/year-light.png)
 
-- Select a tile to open that week in the board.
-- `←` `→` `↑` `↓` move between tiles, `Enter` opens the selected one.
-- `‹` `›` in that view change the ISO year, so weeks on either side of new year
-  stay with the year they belong to.
-- Fill depth shows the completion rate, in six steps. Finished weeks are filled;
-  weeks still to come are not, since they have no completion to show, and weeks
-  with no tasks show a dash. A tile with an accent border is the week the board
-  is showing; an accent week number marks the current week.
-- The column count follows the pane: 10 across a wide pane and fewer in a narrow
-  one, but never below 5, so the date range on a tile is never clipped and a year
-  never turns into a long scroll.
-
-The year view is a separate pane, so it can sit beside the board and stay open
-while you work.
+Fill depth is the completion rate, in six steps. Finished weeks are filled, weeks
+still to come are not, and weeks with no tasks show a dash. The year overview is a
+separate pane, so it can stay open beside the board while you work.
 
 ## How tasks are stored
 
-One Markdown file per week, in the folder set in settings (default
-`weekly-schedule/`), grouped into a folder per ISO year:
+Standard Markdown checkboxes, one file per week, grouped in a folder per ISO year:
 
 ```
 weekly-schedule/
@@ -77,10 +48,6 @@ weekly-schedule/
     2026-W01.md
     2026-W12.md
 ```
-
-Grouping by year keeps a growing archive navigable by hand. The year folder is the
-week's **ISO** year, not its calendar year, so the week of 2025-12-29 — which is
-week 1 of 2026 — lives in `2026/`, matching how the year overview presents it.
 
 ```markdown
 # 2026-W12
@@ -95,91 +62,101 @@ week 1 of 2026 — lives in `2026/`, matching how the year overview presents it.
 - [ ] 整理书签
 ```
 
-Cells without tasks are omitted, so the file stays short. Standard checkbox
-syntax means these tasks are ordinary Markdown: they are searchable, work with
-task-oriented plugins, and can be edited by hand.
+Cells with no tasks are omitted, so the file stays short. Because it is ordinary
+Markdown, these tasks are searchable, readable by other task plugins, editable by
+hand, and safe to sync or version. The plugin keeps the file and the board in step:
+editing the file outside the board reloads it, and an unsaved edit in the board
+wins over the file rather than being discarded.
 
-Editing the file outside the board works too — the board reloads when the file
-changes on disk. Save the file and the board follows. When the board itself has
-an edit that has not been written yet, the board's version wins and is written
-out, so typing in the board is never discarded.
+The folder is the week's **ISO** year, not its calendar year, so the week of
+2025-12-29 — week 1 of 2026 — lives in `2026/`, matching how the year overview
+presents it.
 
-## Layout
+### Files written before year folders
+
+Files used to sit directly in the schedule folder (`weekly-schedule/2026-W12.md`).
+The plugin still reads them from there, so an existing vault does not look empty
+after updating. Run the **Move week files into year folders** command (or use the
+button in settings) to move them. Only files in the schedule folder named like
+`YYYY-Www.md` are touched, so notes you keep there are left alone.
+
+## Privacy
+
+The plugin runs entirely offline. It makes no network requests, collects no
+telemetry, and reads and writes only its own files inside your vault.
+
+## Installation
+
+Once listed in the community catalog, install it from **Settings → Community
+plugins → Browse**.
+
+To install a release by hand, download `main.js`, `manifest.json` and
+`styles.css` from the latest release and put them in:
 
 ```
-src/
-  main.ts                 # Lifecycle, view registration, commands, vault events
-  settings.ts             # Settings interface, defaults, settings tab
-  store.ts                # Reading/writing weekly files, caching, debounced saves
-  markdown.ts             # Markdown <-> board conversion
-  constants.ts            # View type, quadrants, days, defaults
-  types.ts                # Data model
-  ui/
-    weekly-schedule-view.ts       # The board view
-    weekly-schedule-year-view.ts  # Year overview, one tile per ISO week
-    inline-editor.ts              # Inline plain-text editing for task rows
-  utils/
-    date.ts               # Week arithmetic and file naming
-    helpers.ts            # Small shared helpers
+<Vault>/.obsidian/plugins/weekly-schedule/
 ```
+
+Then enable **Weekly Schedule** in **Settings → Community plugins**.
+
+Requires Obsidian **1.5.7** or later.
 
 ## Development
 
-Requires Node.js 18+ (LTS recommended).
-
-`minAppVersion` is **1.5.7**, the oldest release whose API this plugin builds on
-(`Vault.getFileByPath`). The settings tab deliberately uses the imperative
-`Setting` API: the declarative API added in 1.13 would put these options into
-Obsidian's settings search, but it would raise the minimum to 1.13 and shut out
-everyone on an older release. The lint rule asking for it reports a warning, which
-is accepted on purpose — see the note in `src/settings.ts`.
+Requires Node.js 18+.
 
 ```bash
-npm install        # install dependencies
-npm run dev        # rebuild main.js on every change (watch mode)
+npm install
+npm run dev        # rebuild main.js on change
 npm run build      # type check + production build
 npm run lint       # ESLint with Obsidian-specific rules
+npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
-After changing code, reload Obsidian (or use a hot-reload plugin) and confirm the plugin is enabled in **Settings → Community plugins**.
+`npm run deploy` copies the three release files into the vault, then compares them
+byte for byte and checks that the stylesheet still carries the current design's
+markers. A half-finished copy is a real failure mode: an old `styles.css` next to a
+new `main.js` renders the previous design with no error anywhere.
 
-## Installing into a vault
+Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
+loads.
 
-```bash
-npm run build
-npm run deploy -- "<Vault>"
+### Layout
+
+```
+src/
+  main.ts                        # Lifecycle, view registration, commands, vault events
+  settings.ts                    # Settings interface, defaults, settings tab
+  store.ts                       # Reading/writing week files, caching, debounced saves
+  markdown.ts                    # Markdown <-> board conversion
+  migrate.ts                     # Moving week files into year folders
+  constants.ts                   # View types, quadrants, days, defaults
+  types.ts                       # Data model
+  ui/
+    weekly-schedule-view.ts      # The board
+    weekly-schedule-year-view.ts # Year overview
+    inline-editor.ts             # Inline plain-text editing for task rows
+  utils/
+    date.ts                      # Week arithmetic and file naming
+    helpers.ts                   # Shared helpers, including grid fitting
+scripts/
+  deploy.mjs                     # The npm run deploy helper
+  diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 
-`deploy` copies `main.js`, `manifest.json` and `styles.css` into
-`<Vault>/.obsidian/plugins/<plugin-id>/` and then verifies every copied file byte
-for byte, and that the stylesheet still carries the current design's markers. A
-half-finished copy is a real failure mode here: an old `styles.css` next to a new
-`main.js` renders the previous design with no error anywhere.
+Both views size their grid from the pane they are in rather than from the window,
+because an Obsidian pane is often a sidebar or half a split.
 
-Then enable **Weekly Schedule** in **Settings → Community plugins**, and reload
-the plugin (disable and re-enable it, or restart Obsidian) after any change —
-Obsidian reads `main.js` only when a plugin loads.
-
-## Releasing
-
-1. Bump `version` in `manifest.json` (SemVer) — or run `npm version patch|minor|major`.
-2. Add the matching entry to `versions.json` (`"<plugin-version>": "<min-app-version>"`).
-3. Create a GitHub release whose tag exactly matches the manifest version (no leading `v`).
-4. Attach `main.js`, `manifest.json`, and `styles.css` as release assets.
-
-## Releasing
-
-The repository already carries the standard workflows, so publishing a version is
-tag-driven:
+### Releasing
 
 ```bash
 # 1. Bump the version. This rewrites manifest.json and versions.json for you.
-npm version 0.1.1 --no-git-tag-version
+npm version 0.1.2 --no-git-tag-version
 git add manifest.json versions.json package.json
-git commit -m "release: 0.1.1"
+git commit -m "release: 0.1.2"
 
 # 2. Tag with the exact manifest version, no leading "v".
-git tag 0.1.1
+git tag 0.1.2
 git push origin main --follow-tags
 ```
 
@@ -189,18 +166,14 @@ attached. Review the draft, then publish it — the tag and `manifest.json`'s
 `version` must match exactly, and `versions.json` must map that version to
 `minAppVersion`.
 
-## Getting listed in the community catalog
+### Getting listed in the community catalog
 
-The plugin is installable by URL before this step; the catalog is what makes it
-searchable inside Obsidian.
-
-1. Release at least one version (above) and confirm the three release assets exist.
+1. Release at least one version and confirm the three release assets exist.
 2. Confirm `id`, `name`, `description` and `author` in `manifest.json` are what you
    want shown publicly — the catalog entry is built from them, plus `repo`.
 3. Open a pull request against
    [obsidianmd/obsidian-releases](https://github.com/obsidianmd/obsidian-releases)
-   that adds one entry to `community-plugins.json`, keeping the array's existing
-   ordering convention:
+   that appends one entry to `community-plugins.json`:
    ```json
    {
        "id": "weekly-schedule",
@@ -213,21 +186,19 @@ searchable inside Obsidian.
 4. Keep `id` stable forever: it is the key Obsidian uses to update installed
    plugins. Changing it later breaks every existing installation.
 
-### Before submitting
+Before submitting, check that `LICENSE` and `README.md` are present, that there are
+no network calls or telemetry, and that `minAppVersion` is honest. The
+`obsidianmd/no-unsupported-api` lint rule enforces that last one against
+`manifest.json`, so lowering it without checking will fail `npm run lint`.
 
-- `LICENSE` and a `README.md` are present (both are required).
-- No network calls, no telemetry — this plugin reads and writes only its own files
-  in the vault.
-- `minAppVersion` is honest: `1.5.7`, the oldest release providing every API this
-  plugin calls. The `obsidianmd/no-unsupported-api` lint rule enforces this
-  against `manifest.json`, so lowering it without checking will fail `npm run lint`.
-- Install it into a **clean vault** from the built files and check that enabling,
-  disabling and reloading the plugin leave nothing broken.
-- Review the [developer policies](https://docs.obsidian.md/Developer+policies) and
-  [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Keep `description` short: the catalog shows a truncated line, so lead with what
-  the plugin does.
+### Why the settings tab is not declarative
+
+The declarative settings API added in Obsidian 1.13 would put these options into
+Obsidian's settings search, but it would raise `minAppVersion` to 1.13 and shut out
+everyone on an older release. Two dropdowns do not justify that, so the tab uses
+the imperative `Setting` API and the lint rule asking for the declarative one
+reports a warning that is accepted on purpose.
 
 ## API documentation
 
-See https://docs.obsidian.md
+See <https://docs.obsidian.md>.
