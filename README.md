@@ -150,14 +150,20 @@ because an Obsidian pane is often a sidebar or half a split.
 ### Releasing
 
 ```bash
-# 1. Bump the version. This rewrites manifest.json and versions.json for you.
+# 1. Bump the version. This rewrites manifest.json and versions.json for you, and
+#    npm rewrites the version in package-lock.json along with package.json.
 npm version 0.1.2 --no-git-tag-version
-git add manifest.json versions.json package.json
+git add manifest.json versions.json package.json package-lock.json
 git commit -m "release: 0.1.2"
 
 # 2. Tag with the exact manifest version, no leading "v".
 git tag 0.1.2
-git push origin main --follow-tags
+
+# 3. Push the branch and the tag, naming the tag explicitly. Do not reach for
+#    --follow-tags here: it carries annotated tags only, so it skips a
+#    lightweight tag like this one without any error or warning, the branch
+#    lands, and no release is ever created.
+git push origin main 0.1.2
 ```
 
 Pushing the tag runs `.github/workflows/release.yml`, which builds the plugin and
