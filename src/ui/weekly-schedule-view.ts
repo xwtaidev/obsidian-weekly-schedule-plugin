@@ -411,6 +411,9 @@ export class WeeklyScheduleView extends ItemView {
 		});
 		checkbox.checked = task.done;
 		checkbox.addEventListener('change', () => {
+			// The board is only re-rendered when the row is about to disappear,
+			// so the completed look has to be applied to this row directly.
+			row.toggleClass('is-done', checkbox.checked);
 			this.setTaskDone(quadrant, task.id, checkbox.checked);
 		});
 

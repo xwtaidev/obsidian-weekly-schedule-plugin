@@ -317,10 +317,36 @@ inside each day.
 	box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
+/* A finished task has to read as finished at a glance, so the whole row drops
+   to the faint tier and the label is struck through. The strike borrows the
+   text colour: a border colour as the decoration is all but invisible in themes
+   where borders sit close to the background. */
+.weekly-schedule-task.is-done {
+	color: var(--text-faint);
+}
+
 .weekly-schedule-task.is-done .weekly-schedule-task-text {
 	color: var(--text-faint);
 	text-decoration: line-through;
-	text-decoration-color: var(--background-modifier-border-hover);
+	text-decoration-color: currentColor;
+}
+
+/* The check and the row controls belong to the same muted row. Greyscale keeps
+   the white tick readable while it turns the quadrant-coloured fill grey, so a
+   finished row never carries the accent that marks work still to do. */
+.weekly-schedule-task.is-done .weekly-schedule-checkbox {
+	border-color: var(--text-faint);
+}
+
+.weekly-schedule-task.is-done .weekly-schedule-checkbox:checked {
+	border-color: transparent;
+	filter: grayscale(1);
+	opacity: 0.75;
+}
+
+.weekly-schedule-task.is-done .weekly-schedule-task-button {
+	color: var(--text-faint);
+	opacity: 0.75;
 }
 
 /* Row controls hold their space at all times, so revealing them never reflows
