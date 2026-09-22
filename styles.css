@@ -94,7 +94,10 @@ inside each day.
 }
 
 .weekly-schedule-button,
-.weekly-schedule-text-button {
+.weekly-schedule-text-button,
+/* The icon buttons carry `clickable-icon`, which Obsidian's button rule exempts;
+   the text button has no such class and needs the extra weight instead. */
+.weekly-schedule-toolbar .weekly-schedule-text-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -118,7 +121,8 @@ inside each day.
 }
 
 .weekly-schedule-button:hover,
-.weekly-schedule-text-button:hover {
+.weekly-schedule-text-button:hover,
+.weekly-schedule-toolbar .weekly-schedule-text-button:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
@@ -267,7 +271,9 @@ inside each day.
 	background: var(--background-modifier-hover);
 }
 
-.weekly-schedule-checkbox {
+/* Scoped for the same reason as the add row: `input[type=checkbox]` (0,1,1) in
+   Obsidian's stylesheet otherwise keeps its own size, radius and tick. */
+.weekly-schedule-task .weekly-schedule-checkbox {
 	flex: 0 0 auto;
 	appearance: none;
 	width: 13px;
@@ -283,11 +289,17 @@ inside each day.
 		background-color 120ms ease;
 }
 
-.weekly-schedule-checkbox:hover {
+.weekly-schedule-task .weekly-schedule-checkbox:hover {
 	border-color: var(--ws-accent);
 }
 
-.weekly-schedule-checkbox:checked {
+/* Obsidian draws its own tick in `::after`, sized by `--checkbox-size` — larger
+   than this box, so it landed on top of the tick below and doubled it. */
+.weekly-schedule-list .weekly-schedule-task .weekly-schedule-checkbox:checked::after {
+	content: none;
+}
+
+.weekly-schedule-task .weekly-schedule-checkbox:checked {
 	border-color: var(--ws-accent);
 	background-color: var(--ws-accent);
 	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
@@ -392,9 +404,15 @@ inside each day.
 
 /* ---------- Add task ---------- */
 
-/* A text-weight affordance rather than a bordered button box. Always visible,
-   including in empty cells, so every quadrant is obviously actionable. */
-.weekly-schedule-add {
+/* A text-weight affordance rather than a bordered button box.
+   Obsidian's own stylesheet styles `button:not(.clickable-icon)` with the theme's
+   fill and input shadow, and that selector (0,1,1) outranks a lone class (0,1,0).
+   Every quadrant therefore showed a raised grey button with the text stuck inside
+   it, which is what made the board read as a page of buttons. Scoping to the cell
+   (0,2,0) outranks it, so this row stays flat whatever the theme does.
+   Naming the row by its own class rather than fixing the theme means the row keeps
+   the theme's colours and font; only the box is taken away. */
+.weekly-schedule-cell .weekly-schedule-add {
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -416,7 +434,8 @@ inside each day.
 		background-color 120ms ease;
 }
 
-.weekly-schedule-add:hover {
+.weekly-schedule-cell .weekly-schedule-add:hover,
+.weekly-schedule-cell .weekly-schedule-add:focus-visible {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
@@ -510,7 +529,9 @@ inside each day.
 	outline: none;
 }
 
-.weekly-schedule-year-tile {
+/* Scoped like the add row: the tile is a `button`, and the theme's button rule
+   would otherwise paint a fill and an input shadow behind the tile. */
+.weekly-schedule-year-grid .weekly-schedule-year-tile {
 	/* The tile is only a positioning context now. All of its appearance lives in
 	   `.weekly-schedule-year-inner`, which is absolutely positioned to fill the
 	   grid area — so no rule about button boxes can change the shape: a 30px width
