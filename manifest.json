@@ -1,7 +1,7 @@
 {
 	"id": "weekly-schedule",
 	"name": "Weekly Schedule",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"minAppVersion": "1.5.7",
 	"description": "Plan each week in four priority quadrants, stored as plain Markdown you can edit by hand.",
 	"author": "xwtaidev",
