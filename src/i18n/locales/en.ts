@@ -50,6 +50,12 @@ export const en = {
 	'board.delete': 'Delete',
 	'board.weekLabel': 'Week {week} of {year} · {range}',
 
+	// Week totals, in the strip below the board.
+	'board.stats.tasks': '{count} task this week|{count} tasks this week',
+	'board.stats.done': '{count} done',
+	'board.stats.percent': '{percent}% complete',
+	'board.stats.empty': 'No tasks this week yet',
+
 	// Year overview.
 	'year.previous': 'Previous year',
 	'year.next': 'Next year',

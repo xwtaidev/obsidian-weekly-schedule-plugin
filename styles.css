@@ -452,6 +452,30 @@ inside each day.
 	white-space: nowrap;
 }
 
+/* ---------- Week stats ---------- */
+
+/* The week's own totals, in a strip pinned to the bottom of the pane: a week long
+   enough to scroll is exactly when its summary is worth keeping in sight. Values
+   only — the board is where the work is, and the numbers must not compete with it. */
+.weekly-schedule-stats {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	padding: 8px 18px;
+	border-top: 1px solid var(--background-modifier-border);
+	background-color: var(--background-primary);
+	color: var(--text-muted);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Matches the year overview's summary: the rate carries the emphasis, the counts
+   beside it stay quiet. */
+.weekly-schedule-stats-value {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
 /* ---------- Year overview ---------- */
 
 /* One tile per ISO week, 13 per row. A tile is a rule, a week number and a

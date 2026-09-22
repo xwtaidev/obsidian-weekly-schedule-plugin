@@ -1,7 +1,8 @@
 import { ItemView, Menu, moment, setIcon } from 'obsidian';
 import { QUADRANTS, VIEW_TYPE_WEEKLY_SCHEDULE } from '../constants';
 import { formatWeekLabel } from '../i18n/format';
-import { dayLabel, quadrantParts, syncLocale, t } from '../i18n';
+import { dayLabel, quadrantParts, syncLocale, t, tp } from '../i18n';
+import { countTasks } from '../store';
 import {
 	dateKey,
 	isSameDay,
@@ -52,6 +53,8 @@ export class WeeklyScheduleView extends ItemView {
 
 	private toolbarEl: HTMLElement | null = null;
 	private boardEl: HTMLElement | null = null;
+	/** Totals strip below the board, rewritten in place as the week changes. */
+	private statsEl: HTMLElement | null = null;
 	/** Column count the grid was last laid out with. */
 	private columns = MAX_COLUMNS;
 
@@ -252,9 +255,45 @@ export class WeeklyScheduleView extends ItemView {
 		this.renderToolbar();
 		this.boardEl = this.contentEl.createDiv({ cls: 'weekly-schedule-board' });
 		schedule.days.forEach((day, index) => this.renderDay(day, index));
+		this.renderStats(schedule);
 
 		// Now that the grid exists, fit it to the pane.
 		this.updateColumns();
+	}
+
+	/**
+	 * The week's totals, in the strip pinned below the board.
+	 *
+	 * Counted from the schedule in memory rather than from the file, so an edit
+	 * moves the numbers at once instead of waiting for the debounced write.
+	 */
+	private renderStats(schedule: WeekSchedule): void {
+		this.statsEl = this.contentEl.createDiv({ cls: 'weekly-schedule-stats' });
+		this.updateStats(schedule);
+	}
+
+	/** Rewrites the totals after an edit changed them. */
+	private updateStats(schedule: WeekSchedule | null = this.schedule): void {
+		if (!this.statsEl || !schedule) {
+			return;
+		}
+
+		const { total, done, percent } = countTasks(schedule);
+		this.statsEl.empty();
+		if (total === 0) {
+			this.statsEl.setText(t('board.stats.empty'));
+			return;
+		}
+
+		// One line, with the rate carrying the emphasis: the counts are context for
+		// it, not three separate readings.
+		this.statsEl.appendText(
+			`${tp('board.stats.tasks', total)} · ${t('board.stats.done', { count: done })} · `,
+		);
+		this.statsEl.createSpan({
+			cls: 'weekly-schedule-stats-value',
+			text: t('board.stats.percent', { percent: percent ?? 0 }),
+		});
 	}
 
 	/**
@@ -562,6 +601,7 @@ export class WeeklyScheduleView extends ItemView {
 	private save(): void {
 		if (this.schedule) {
 			this.plugin.store.markDirty(this.schedule.path);
+			this.updateStats(this.schedule);
 		}
 	}
 

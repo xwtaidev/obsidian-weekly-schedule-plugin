@@ -11,6 +11,11 @@ important but not urgent, and neither. Every cell has an **Add a task**
 it. Press `Enter` to commit, `Esc` to discard; a task left empty is never written
 to the file.
 
+Below the board, a status strip keeps the week's own totals in sight — **12 tasks
+this week · 5 done · 42% complete** — counted from the board as you edit it, and
+pinned to the bottom of the pane so a week long enough to scroll does not take its
+own summary with it. A week with nothing in it says so instead.
+
 Both views follow your Obsidian theme; the screenshots above and below are dark
 and light respectively. Expand for the board in light mode and the year overview
 in dark mode:

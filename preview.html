@@ -228,6 +228,17 @@ DAYS.forEach((day, index) => {
 	board.append(dayEl);
 });
 
+// The totals strip the view renders below the board.
+const all = Object.values(TASKS).flat();
+const done = all.filter((task) => task.done).length;
+const percent = all.length === 0 ? 0 : Math.round((done / all.length) * 100);
+const stats = document.createElement('div');
+stats.className = 'weekly-schedule-stats';
+stats.innerHTML = all.length === 0
+	? '本周还没有待办'
+	: `本周 ${all.length} 项 · 已完成 ${done} · <span class="weekly-schedule-stats-value">完成 ${percent}%</span>`;
+document.querySelector('.weekly-schedule-container').append(stats);
+
 for (const id of ['dark', 'light']) {
 	document.getElementById(id).addEventListener('click', () => {
 		document.body.className = 'theme-' + id;

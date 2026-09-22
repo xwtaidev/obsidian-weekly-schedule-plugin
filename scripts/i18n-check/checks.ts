@@ -81,7 +81,7 @@ check(
 );
 check(
 	'counted strings carry both plural forms',
-	['migrate.result', 'migrate.pendingFiles', 'migrate.movedFiles', 'year.weeksDone', 'year.tasksTotal'].filter(
+	['migrate.result', 'migrate.pendingFiles', 'migrate.movedFiles', 'year.weeksDone', 'year.tasksTotal', 'board.stats.tasks'].filter(
 		(key) => !(en as Record<string, string>)[key]?.includes('|'),
 	),
 	[],
@@ -189,6 +189,13 @@ check('en quadrant parts', quadrantParts(true, false), ['Important', 'not urgent
 check('en day count', t('day.openCount', { count: 3 }), '3 left');
 check('en plural, singular', tp('year.tasksTotal', 1), '1 task');
 check('en plural, plural', tp('year.tasksTotal', 4), '4 tasks');
+check('en week totals, singular', tp('board.stats.tasks', 1), '1 task this week');
+check('en week totals, plural', tp('board.stats.tasks', 9), '9 tasks this week');
+check(
+	'en week totals line',
+	`${tp('board.stats.tasks', 12)} · ${t('board.stats.done', { count: 5 })} · ${t('board.stats.percent', { percent: 42 })}`,
+	'12 tasks this week · 5 done · 42% complete',
+);
 check('en notice with a count', tp('migrate.result', 2), 'Weekly schedule: moved 2 files into year folders.');
 check(
 	'en notice with a year list',
@@ -200,6 +207,12 @@ use('zh');
 check('zh day label', t('day.wed'), '周三');
 check('zh quadrant parts', quadrantParts(false, true), ['不重要', '紧急']);
 check('zh day count', t('day.openCount', { count: 3 }), '3 项');
+check(
+	'zh week totals line',
+	`${tp('board.stats.tasks', 12)} · ${t('board.stats.done', { count: 5 })} · ${t('board.stats.percent', { percent: 42 })}`,
+	'本周 12 项 · 已完成 5 · 完成 42%',
+);
+check('zh empty week', t('board.stats.empty'), '本周还没有待办');
 check('zh notice with a count', tp('migrate.result', 2), '周计划：已整理 2 个文件到年份文件夹。');
 check(
 	'zh notice with a year list',

@@ -38,6 +38,11 @@ export const zh: Translations = {
 	'board.delete': '删除',
 	'board.weekLabel': '{year} 年第 {week} 周 · {range}',
 
+	'board.stats.tasks': '本周 {count} 项',
+	'board.stats.done': '已完成 {count}',
+	'board.stats.percent': '完成 {percent}%',
+	'board.stats.empty': '本周还没有待办',
+
 	'year.previous': '上一年',
 	'year.next': '下一年',
 	'year.thisYear': '本年',
