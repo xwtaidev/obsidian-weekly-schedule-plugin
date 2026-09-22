@@ -6,9 +6,10 @@ four priority quadrants, and a whole year you can scan at a glance.
 ![The weekly board: seven days across three rows, each with four priority quadrants](assets/board-dark.png)
 
 Each day holds four cells — important and urgent, not important but urgent,
-important but not urgent, and neither. Every cell has a **添加一个待办事项** button
-that appends a task and puts the cursor in it. Press `Enter` to commit, `Esc` to
-discard; a task left empty is never written to the file.
+important but not urgent, and neither. Every cell has an **Add a task**
+(**添加一个待办事项** in Chinese) button that appends a task and puts the cursor in
+it. Press `Enter` to commit, `Esc` to discard; a task left empty is never written
+to the file.
 
 Both views follow your Obsidian theme; the screenshots above and below are dark
 and light respectively. Expand for the board in light mode and the year overview
@@ -80,6 +81,42 @@ after updating. Run the **Move week files into year folders** command (or use th
 button in settings) to move them. Only files in the schedule folder named like
 `YYYY-Www.md` are touched, so notes you keep there are left alone.
 
+## Language
+
+The plugin reads in the language Obsidian is set to (**Settings → General →
+Language**), and follows a change to it straight away — no reload, and nothing to
+configure.
+
+English and Simplified Chinese are built in. Any other language falls back to the
+closest one available: `zh-TW` to Simplified Chinese, everything else to English.
+The sample file above shows the Chinese wording; in an English vault the same week
+is written as:
+
+```markdown
+# 2026-W12
+
+## Monday
+
+### Important · urgent
+- [ ] Send the weekly report
+- [x] Fix the production bug
+
+### Unimportant · not urgent
+- [ ] Tidy the bookmarks
+```
+
+Day and priority headings are the only translated part of a file, and one rule
+follows from that: **a file keeps the language it was written in.** Switching
+Obsidian's language relabels the board, the year overview, the commands and the
+settings tab, but it never rewrites files you already have — opening an old week
+after the switch shows an English board over a Chinese file. A week with no file
+yet is created in the current language, so a vault can hold both without either
+failing to load: the plugin recognizes every heading in every language it ships,
+and a file written before the plugin was translated keeps parsing too.
+
+To convert an existing file, edit its headings — the language of the week's first
+recognized heading decides the language the whole file is written back in.
+
 ## Privacy
 
 The plugin runs entirely offline. It makes no network requests, collects no
@@ -110,6 +147,7 @@ npm install
 npm run dev        # rebuild main.js on change
 npm run build      # type check + production build
 npm run lint       # ESLint with Obsidian-specific rules
+npm run check:i18n # verify the localization and file-heading rules
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
@@ -117,6 +155,12 @@ npm run deploy -- "<Vault>"   # build output into a vault, with verification
 byte for byte and checks that the stylesheet still carries the current design's
 markers. A half-finished copy is a real failure mode: an old `styles.css` next to a
 new `main.js` renders the previous design with no error anywhere.
+
+`npm run check:i18n` bundles the localization and Markdown modules against a
+stand-in for Obsidian's runtime and asserts the rules a type cannot express: a
+saved file keeps its own heading language, a new one follows the interface
+language, every language's headings still parse, and the dates, plurals and
+notices read correctly in both languages.
 
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
@@ -132,6 +176,12 @@ src/
   migrate.ts                     # Moving week files into year folders
   constants.ts                   # View types, quadrants, days, defaults
   types.ts                       # Data model
+  i18n/
+    index.ts                     # Language detection, t()/tp(), day and quadrant wording
+    format.ts                    # Locale-aware dates and week labels
+    locales/
+      en.ts                      # English strings; the source of truth for the keys
+      zh.ts                      # Simplified Chinese
   ui/
     weekly-schedule-view.ts      # The board
     weekly-schedule-year-view.ts # Year overview
@@ -141,11 +191,31 @@ src/
     helpers.ts                   # Shared helpers, including grid fitting
 scripts/
   deploy.mjs                     # The npm run deploy helper
+  i18n-check/                    # The npm run check:i18n helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 
 Both views size their grid from the pane they are in rather than from the window,
 because an Obsidian pane is often a sidebar or half a split.
+
+### Adding a language
+
+Every user-facing string goes through `t()` or `tp()`, keyed by an entry in
+`src/i18n/locales/en.ts`, so the type system rejects a key that does not exist and
+a translation that misses one. To add a language:
+
+1. Copy `en.ts` to a new file and translate the values. A value may split its
+   singular and plural forms with `|`; use one string for both in a language that
+   does not distinguish them.
+2. Add the locale to `SUPPORTED_LOCALES` and `DICTIONARIES` in `src/i18n/index.ts`,
+   and map it to a BCP-47 tag in `INTL_LOCALES` in `src/i18n/format.ts`, so its
+   dates read the way the language writes them.
+3. Revisit the expectations in `scripts/i18n-check/checks.ts` — the fallback cases
+   change as soon as a language is added — and run `npm run check:i18n`.
+
+Day and priority headings are composed from those same strings, which is why a
+translated file is written correctly without any extra work: `dayLabel()` and
+`quadrantParts()` produce both the cell header and the Markdown heading.
 
 ### Releasing
 

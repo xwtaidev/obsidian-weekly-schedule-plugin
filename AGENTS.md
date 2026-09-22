@@ -12,7 +12,18 @@
     - `src/ui/weekly-schedule-year-view.ts` — year overview: one tile per ISO week for jumping to distant weeks.
     - `src/store.ts` — per-week Markdown files, caching, debounced writes, external-edit reloads.
     - `src/markdown.ts` — Markdown <-> board conversion (standard `- [ ]` checkbox syntax).
+    - `src/i18n/` — localization: every user-facing string, language detection, locale-aware dates.
     - `src/utils/date.ts` — week arithmetic, ISO week file names.
+
+## Localization rules
+
+The plugin follows Obsidian's interface language (English and Simplified Chinese are built in). `README.md` documents the user-facing behaviour.
+
+- Every user-facing string goes through `t()` / `tp()`; the keys in `src/i18n/locales/en.ts` are the source of truth, and a locale that misses a key does not compile.
+- Labels are never stored in the model. Day and quadrant wording is derived from ids and flags at render time, so a language change only needs a re-render.
+- A file keeps the heading language it was written in (`WeekSchedule.locale`); only a week with no file yet follows the interface language. A language change must never rewrite a file.
+- The interface language is read from `moment.locale()`. Obsidian applies a language change in place, without an event a plugin can subscribe to, so it is re-checked on a slow interval and at every render.
+- `npm run check:i18n` asserts these rules; run it after touching `src/i18n/`, `src/markdown.ts`, or any label in a view.
 
 ## Environment & tooling
 
