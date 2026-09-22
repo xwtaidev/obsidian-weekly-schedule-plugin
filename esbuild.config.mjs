@@ -34,6 +34,10 @@ const context = await esbuild.context({
 	],
 	format: 'cjs',
 	target: 'es2021',
+	// The locale tables are mostly non-ASCII. ESBuild escapes everything outside
+	// ASCII by default, which inflates those strings and hides them from a plain
+	// search of the bundle.
+	charset: 'utf8',
 	logLevel: 'info',
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
