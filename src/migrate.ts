@@ -1,4 +1,5 @@
 import { Notice, TFile, TFolder, normalizePath } from 'obsidian';
+import { t, tp } from './i18n';
 import { folderOf, parseWeekFileStem, weekFileName } from './utils/date';
 import { normalizeFolder } from './utils/helpers';
 import type { Vault } from 'obsidian';
@@ -74,19 +75,18 @@ export async function applyYearFolders(
 
 export function describeYearFolderMove(moves: WeekMigration[], applied: boolean): string {
 	if (moves.length === 0) {
-		return '每周文件已经在年份文件夹里了。';
+		return t('migrate.alreadyGrouped');
 	}
 	const years = [...new Set(moves.map((move) => folderOf(move.to).split('/').pop() ?? ''))].sort();
-	const verb = applied ? '已移动' : '将移动';
-	return `${verb} ${moves.length} 个文件到 ${years.join('、')} 文件夹。`;
+	return tp(applied ? 'migrate.movedFiles' : 'migrate.pendingFiles', moves.length, {
+		years: years.join(t('list.separator')),
+	});
 }
 
 export function notifyYearFolderResult(moved: number, failed: number): void {
 	if (failed === 0) {
-		new Notice(`Weekly schedule: 已整理 ${moved} 个文件到年份文件夹。`);
+		new Notice(tp('migrate.result', moved));
 		return;
 	}
-	new Notice(
-		`Weekly schedule: 已移动 ${moved} 个文件，${failed} 个失败。详见开发者控制台。`,
-	);
+	new Notice(t('migrate.resultPartial', { moved, failed }));
 }

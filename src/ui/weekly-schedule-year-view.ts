@@ -1,6 +1,8 @@
 import { ItemView, moment, setIcon } from 'obsidian';
 import { VIEW_TYPE_WEEKLY_SCHEDULE_YEAR } from '../constants';
-import { dateKey, formatWeekRange, isoWeeksOfYear, isoYearOf, startOfWeek } from '../utils/date';
+import { formatWeekRange } from '../i18n/format';
+import { syncLocale, t, tp } from '../i18n';
+import { dateKey, isoWeeksOfYear, isoYearOf, startOfWeek } from '../utils/date';
 import { fitColumns } from '../utils/helpers';
 import type { WorkspaceLeaf } from 'obsidian';
 import type WeeklySchedulePlugin from '../main';
@@ -69,7 +71,7 @@ export class WeeklyScheduleYearView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Weekly schedule: year';
+		return t('view.year');
 	}
 
 	getIcon(): string {
@@ -124,6 +126,16 @@ export class WeeklyScheduleYearView extends ItemView {
 
 	async refresh(): Promise<void> {
 		await this.render();
+	}
+
+	/**
+	 * Redraws the labels after the interface language changed. Both the tiles and
+	 * the totals come from data this view already holds, so nothing is re-read.
+	 */
+	onLocaleChange(): void {
+		if (this.isOpen) {
+			this.renderBoard();
+		}
 	}
 
 	async shiftYear(delta: number): Promise<void> {
@@ -194,13 +206,23 @@ export class WeeklyScheduleYearView extends ItemView {
 			inner?.removeAttribute('data-heat');
 			tile.style.removeProperty('--ws-heat-current');
 		}
-		tile.setAttribute(
-			'aria-label',
-			`第 ${cell.week} 周，${formatWeekRange(cell.start)}，完成 ${cell.stats.done}/${cell.stats.total}`,
-		);
+		tile.setAttribute('aria-label', this.tileLabel(cell));
+	}
+
+	/** Spoken description of a tile: week number, date range and progress. */
+	private tileLabel(cell: WeekCell): string {
+		return t('year.tile', {
+			week: cell.week,
+			range: formatWeekRange(cell.start),
+			done: cell.stats.done,
+			total: cell.stats.total,
+		});
 	}
 
 	private async render(): Promise<void> {
+		// A pane can be opened in the moment between a language change and the
+		// next check, so every render reads the language for itself.
+		syncLocale();
 		const token = ++this.loadToken;
 		const weeks = isoWeeksOfYear(this.isoYear);
 
@@ -316,10 +338,7 @@ export class WeeklyScheduleYearView extends ItemView {
 				meta.setText('—');
 			} else {
 				meta.setText(`${cell.stats.percent ?? 0}%`);
-				tile.setAttribute(
-					'aria-label',
-					`第 ${cell.week} 周，${formatWeekRange(cell.start)}，完成 ${cell.stats.done}/${cell.stats.total}`,
-				);
+				tile.setAttribute('aria-label', this.tileLabel(cell));
 				// Fill depth carries completion. Only finished weeks are filled:
 				// a week that has not happened yet has no completion to show.
 				if (this.isPastWeek(cell)) {
@@ -348,14 +367,17 @@ export class WeeklyScheduleYearView extends ItemView {
 	private renderToolbar(): void {
 		const toolbar = this.contentEl.createDiv({ cls: 'weekly-schedule-toolbar' });
 		const nav = toolbar.createDiv({ cls: 'weekly-schedule-nav' });
-		this.addIconButton(nav, 'chevron-left', '上一年', () => void this.shiftYear(-1));
-		nav.createDiv({ cls: 'weekly-schedule-week-label', text: `${this.isoYear} 年` });
-		this.addIconButton(nav, 'chevron-right', '下一年', () => void this.shiftYear(1));
+		this.addIconButton(nav, 'chevron-left', t('year.previous'), () => void this.shiftYear(-1));
+		nav.createDiv({
+			cls: 'weekly-schedule-week-label',
+			text: t('year.label', { year: this.isoYear }),
+		});
+		this.addIconButton(nav, 'chevron-right', t('year.next'), () => void this.shiftYear(1));
 
 		// Only navigation and its action live here. The totals go in a footer,
 		// because a third child in a space-between toolbar floats in the middle.
 		const actions = toolbar.createDiv({ cls: 'weekly-schedule-actions' });
-		this.addTextButton(actions, '本年', () => void this.goToCurrentYear());
+		this.addTextButton(actions, t('year.thisYear'), () => void this.goToCurrentYear());
 	}
 
 	/**
@@ -372,16 +394,19 @@ export class WeeklyScheduleYearView extends ItemView {
 		const withTasks = past.filter((cell) => cell.stats.total > 0).length;
 
 		if (total === 0) {
-			summary.setText('本年还没有已结束的待办');
+			summary.setText(t('year.noFinishedWeeks'));
 			return;
 		}
 
-		summary.createSpan({ text: `已结束 ${withTasks} 周 · 共 ${total} 项 · 完成 ` });
+		// Three parts, so the percentage keeps its own accent.
+		summary.createSpan({
+			text: `${tp('year.weeksDone', withTasks)} · ${tp('year.tasksTotal', total)} · ${t('year.donePrefix')}`,
+		});
 		summary.createSpan({
 			cls: 'weekly-schedule-year-summary-value',
 			text: `${Math.round((done / total) * 100)}%`,
 		});
-		summary.createSpan({ text: `（${done}/${total}）` });
+		summary.createSpan({ text: t('year.doneSuffix', { done, total }) });
 	}
 
 	/** Whether a week has finished, i.e. it is not the current or a future week. */

@@ -1,5 +1,6 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import { DEFAULT_FOLDER, WEEK_START_OPTIONS } from './constants';
+import { dayLabel, t } from './i18n';
 import { normalizeFolder } from './utils/helpers';
 import type { App } from 'obsidian';
 import type WeeklySchedulePlugin from './main';
@@ -37,15 +38,26 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/**
+	 * Rebuilds the tab, which is how a language change reaches an open settings
+	 * pane. `display()` is deprecated in Obsidian 1.13 in favour of the declarative
+	 * settings API, but that API is exactly what this tab does without, so calling
+	 * it is the imperative equivalent — and Obsidian's own typings keep it for
+	 * plugins that support releases older than 1.13.0.
+	 */
+	refresh(): void {
+		if (this.containerEl.isConnected) {
+			this.display();
+		}
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Schedule folder')
-			.setDesc(
-				'Vault folder for the weekly files. The plugin writes one file per week, grouped in a folder per year. Example: weekly-schedule/2026/2026-W12.md',
-			)
+			.setName(t('settings.folder.name'))
+			.setDesc(t('settings.folder.desc'))
 			.addText((text) =>
 				text
 					.setPlaceholder(DEFAULT_FOLDER)
@@ -62,13 +74,11 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Week starts on')
-			.setDesc(
-				'Which day the board starts with. Week numbers in file names are unaffected by this.',
-			)
+			.setName(t('settings.weekStart.name'))
+			.setDesc(t('settings.weekStart.desc'))
 			.addDropdown((dropdown) => {
 				for (const option of WEEK_START_OPTIONS) {
-					dropdown.addOption(String(option.value), option.label);
+					dropdown.addOption(String(option.value), dayLabel(option.day));
 				}
 				dropdown.setValue(String(this.plugin.settings.weekStartsOn));
 				dropdown.onChange(async (value) => {
@@ -83,30 +93,28 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName('Open board')
-			.setDesc('Open the weekly board in a tab, or focus it when it is already open.')
+			.setName(t('settings.openBoard.name'))
+			.setDesc(t('settings.openBoard.desc'))
 			.addButton((button) =>
-				button.setButtonText('Open board').onClick(() => {
+				button.setButtonText(t('settings.openBoard.button')).onClick(() => {
 					void this.plugin.activateView();
 				}),
 			);
 
 		new Setting(containerEl)
-			.setName('Open year overview')
-			.setDesc('Pick a week from a whole year at once.')
+			.setName(t('settings.openYear.name'))
+			.setDesc(t('settings.openYear.desc'))
 			.addButton((button) =>
-				button.setButtonText('Open overview').onClick(() => {
+				button.setButtonText(t('settings.openYear.button')).onClick(() => {
 					void this.plugin.activateYearView();
 				}),
 			);
 
 		new Setting(containerEl)
-			.setName('Year folders')
-			.setDesc(
-				'Move week files that sit directly in the schedule folder into a folder per year.',
-			)
+			.setName(t('settings.yearFolders.name'))
+			.setDesc(t('settings.yearFolders.desc'))
 			.addButton((button) =>
-				button.setButtonText('Move files').onClick(() => {
+				button.setButtonText(t('settings.yearFolders.button')).onClick(() => {
 					void this.plugin.moveWeeksIntoYearFolders();
 				}),
 			);

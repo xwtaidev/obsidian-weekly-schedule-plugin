@@ -120,13 +120,6 @@ export function folderOf(path: string): string {
 	return index === -1 ? '' : path.slice(0, index);
 }
 
-export function formatWeekLabel(date: Moment): string {
-	const monday = date.clone().startOf('isoWeek');
-	const sunday = monday.clone().add(6, 'days');
-	const range = `${monday.format('M月D日')} – ${sunday.format('M月D日')}`;
-	return `${monday.format('YYYY')} 年第 ${isoWeekNumber(monday)} 周 · ${range}`;
-}
-
 /** Days of the week in configured order (Monday first by default). */
 export function weekDays(date: Moment, weekStartsOn: number): Moment[] {
 	const first = startOfWeek(date, weekStartsOn);
@@ -173,10 +166,4 @@ export function isoWeeksOfYear(isoYear: number): { week: number; start: Moment }
 		week: index + 1,
 		start: isoWeekStart(isoYear, index + 1),
 	}));
-}
-
-/** Compact one-week range for a tile, e.g. `3/16 – 3/22`. */
-export function formatWeekRange(start: Moment): string {
-	const end = start.clone().add(6, 'days');
-	return `${start.format('M/D')} – ${end.format('M/D')}`;
 }

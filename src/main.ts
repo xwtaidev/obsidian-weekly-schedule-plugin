@@ -1,5 +1,10 @@
 import { Notice, Plugin, moment } from 'obsidian';
-import { VIEW_TYPE_WEEKLY_SCHEDULE, VIEW_TYPE_WEEKLY_SCHEDULE_YEAR } from './constants';
+import {
+	LOCALE_POLL_MS,
+	VIEW_TYPE_WEEKLY_SCHEDULE,
+	VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
+} from './constants';
+import { getLocaleRevision, syncLocale, t } from './i18n';
 import {
 	DEFAULT_SETTINGS,
 	WeeklyScheduleSettings,
@@ -15,12 +20,36 @@ import { ScheduleStore } from './store';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
 import { weekFilePath } from './utils/date';
-import type { TAbstractFile } from 'obsidian';
+import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
+import type { TranslationKey } from './i18n';
 import type { Moment } from './utils/date';
+
+/**
+ * Redraws a view's tab title after a language change.
+ *
+ * `updateHeader` is what Obsidian itself uses for this, but it is not in the
+ * public typings, so it is called only when the runtime provides it. Without it
+ * a title keeps the wording it was created with until the pane is reopened.
+ */
+function refreshLeafTitle(leaf: WorkspaceLeaf): void {
+	const updatable = leaf as unknown as { updateHeader?: () => void };
+	updatable.updateHeader?.();
+}
 
 export default class WeeklySchedulePlugin extends Plugin {
 	settings!: WeeklyScheduleSettings;
 	store!: ScheduleStore;
+
+	/** Registered commands and ribbon buttons, kept so their names can follow the language. */
+	private readonly localizedCommands: { command: Command; key: TranslationKey }[] = [];
+	private readonly localizedRibbons: { element: HTMLElement; key: TranslationKey }[] = [];
+	/**
+	 * Language revision Obsidian's own surfaces were last titled with. The plugin
+	 * registers them with the current language, so revision 0 — the revision at
+	 * load — needs no pass, and the first check is a no-op.
+	 */
+	private localizedRevision = 0;
+	private settingTab!: WeeklyScheduleSettingTab;
 
 	async onload() {
 		await this.loadSettings();
@@ -36,50 +65,41 @@ export default class WeeklySchedulePlugin extends Plugin {
 			(leaf) => new WeeklyScheduleYearView(leaf, this),
 		);
 
-		this.addRibbonIcon('calendar-days', 'Open weekly board', () => {
+		this.addLocalizedRibbon('calendar-days', 'command.openBoard', () => {
 			void this.activateView();
 		});
-		this.addRibbonIcon(YEAR_VIEW_ICON, 'Open year overview', () => {
+		this.addLocalizedRibbon(YEAR_VIEW_ICON, 'command.openYear', () => {
 			void this.activateYearView();
 		});
 
-		this.addCommand({
-			id: 'open-board',
-			name: 'Open weekly board',
-			callback: () => void this.activateView(),
-		});
+		this.addLocalizedCommand('open-board', 'command.openBoard', () => void this.activateView());
 
-		this.addCommand({
-			id: 'open-year-overview',
-			name: 'Open year overview',
-			callback: () => void this.activateYearView(),
-		});
+		this.addLocalizedCommand('open-year-overview', 'command.openYear', () =>
+			void this.activateYearView(),
+		);
 
-		this.addCommand({
-			id: 'move-weeks-into-year-folders',
-			name: 'Move week files into year folders',
-			callback: () => void this.moveWeeksIntoYearFolders(),
-		});
+		this.addLocalizedCommand('move-weeks-into-year-folders', 'command.moveWeeks', () =>
+			void this.moveWeeksIntoYearFolders(),
+		);
 
-		this.addCommand({
-			id: 'current-week',
-			name: 'Go to the current week',
-			callback: () => void this.navigateToToday(),
-		});
+		this.addLocalizedCommand('current-week', 'command.currentWeek', () =>
+			void this.navigateToToday(),
+		);
 
-		this.addCommand({
-			id: 'previous-week',
-			name: 'Go to the previous week',
-			callback: () => void this.navigateBy(-1),
-		});
+		this.addLocalizedCommand('previous-week', 'command.previousWeek', () =>
+			void this.navigateBy(-1),
+		);
 
-		this.addCommand({
-			id: 'next-week',
-			name: 'Go to the next week',
-			callback: () => void this.navigateBy(1),
-		});
+		this.addLocalizedCommand('next-week', 'command.nextWeek', () => void this.navigateBy(1));
 
-		this.addSettingTab(new WeeklyScheduleSettingTab(this.app, this));
+		this.settingTab = new WeeklyScheduleSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
+
+		// Obsidian switches language in place, without reloading the app and
+		// without an event a plugin can subscribe to, so the language is checked
+		// on a slow interval. `syncLocale()` only reports an actual change, and
+		// every render checks it too, so a freshly opened pane is never stale.
+		this.registerInterval(window.setInterval(() => this.applyLocale(), LOCALE_POLL_MS));
 
 		// Keep the board in sync when its file is edited outside the plugin,
 		// for example in a note or by a sync service.
@@ -105,6 +125,62 @@ export default class WeeklySchedulePlugin extends Plugin {
 
 	onunload() {
 		void this.store.flushAll();
+	}
+
+	/**
+	 * Registers a ribbon button whose tooltip follows the interface language.
+	 */
+	private addLocalizedRibbon(icon: IconName, key: TranslationKey, onClick: () => void): void {
+		const element = this.addRibbonIcon(icon, t(key), onClick);
+		this.localizedRibbons.push({ element, key });
+	}
+
+	/**
+	 * Registers a command whose name follows the interface language. The name is
+	 * read when a surface shows the command, so retitling is enough; there is no
+	 * need to re-register, which would risk duplicate command ids.
+	 */
+	private addLocalizedCommand(id: string, key: TranslationKey, callback: () => void): void {
+		const command = this.addCommand({ id, name: t(key), callback });
+		this.localizedCommands.push({ command, key });
+	}
+
+	/**
+	 * Adopts the interface language when it changed. Called on a slow interval
+	 * and by anything that is about to draw text.
+	 */
+	private applyLocale(): void {
+		syncLocale();
+		const revision = getLocaleRevision();
+		if (revision === this.localizedRevision) {
+			return;
+		}
+		this.localizedRevision = revision;
+
+		for (const { element, key } of this.localizedRibbons) {
+			element.setAttribute('aria-label', t(key));
+		}
+		for (const { command, key } of this.localizedCommands) {
+			command.name = t(key);
+		}
+		for (const leaf of this.localizedLeaves()) {
+			refreshLeafTitle(leaf);
+		}
+		this.settingTab.refresh();
+
+		// Both views redraw from what they already hold: every label is derived
+		// from an id and the current language, so a language change needs no file
+		// to be read — or rewritten.
+		this.viewOf()?.onLocaleChange();
+		this.yearViewOf()?.onLocaleChange();
+	}
+
+	/** Leaves of both views, the panes whose titles Obsidian draws for us. */
+	private localizedLeaves(): WorkspaceLeaf[] {
+		return [
+			...this.app.workspace.getLeavesOfType(VIEW_TYPE_WEEKLY_SCHEDULE),
+			...this.app.workspace.getLeavesOfType(VIEW_TYPE_WEEKLY_SCHEDULE_YEAR),
+		];
 	}
 
 	/** Opens the board, or focuses it when it is already open. */

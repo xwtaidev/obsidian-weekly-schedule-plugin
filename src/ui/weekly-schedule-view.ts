@@ -1,8 +1,9 @@
 import { ItemView, Menu, moment, setIcon } from 'obsidian';
 import { QUADRANTS, VIEW_TYPE_WEEKLY_SCHEDULE } from '../constants';
+import { formatWeekLabel } from '../i18n/format';
+import { dayLabel, quadrantParts, syncLocale, t } from '../i18n';
 import {
 	dateKey,
-	formatWeekLabel,
 	isSameDay,
 	shiftWeek,
 	startOfWeek,
@@ -67,7 +68,7 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Weekly schedule';
+		return t('view.board');
 	}
 
 	getIcon(): string {
@@ -194,6 +195,19 @@ export class WeeklyScheduleView extends ItemView {
 		await this.render();
 	}
 
+	/**
+	 * Redraws the labels after the interface language changed.
+	 *
+	 * Nothing is reloaded and nothing is written: wording is derived from ids at
+	 * render time, so the board can simply draw itself again — which also leaves
+	 * the file's own heading language untouched.
+	 */
+	onLocaleChange(): void {
+		if (this.isOpen && this.schedule) {
+			this.renderBoard(this.schedule);
+		}
+	}
+
 	private get weekStartDay(): number {
 		return this.plugin.settings.weekStartsOn;
 	}
@@ -211,6 +225,9 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	private async render(): Promise<void> {
+		// A pane can be opened in the moment between a language change and the
+		// next check, so every render reads the language for itself.
+		syncLocale();
 		const token = ++this.loadToken;
 		const path = this.pathFor(this.weekStart);
 		const weekChanged = this.renderedWeekStart !== this.weekStart;
@@ -271,24 +288,25 @@ export class WeeklyScheduleView extends ItemView {
 		this.toolbarEl = this.contentEl.createDiv({ cls: 'weekly-schedule-toolbar' });
 
 		const navigation = this.toolbarEl.createDiv({ cls: 'weekly-schedule-nav' });
-		this.addIconButton(navigation, 'chevron-left', '上一周', () => void this.navigate(-1));
+		this.addIconButton(navigation, 'chevron-left', t('board.previousWeek'), () =>
+			void this.navigate(-1),
+		);
 		const label = navigation.createDiv({ cls: 'weekly-schedule-week-label' });
 		label.setText(formatWeekLabel(this.momentOf(this.weekStart)));
-		this.addIconButton(navigation, 'chevron-right', '下一周', () => void this.navigate(1));
+		this.addIconButton(navigation, 'chevron-right', t('board.nextWeek'), () =>
+			void this.navigate(1),
+		);
 
 		const actions = this.toolbarEl.createDiv({ cls: 'weekly-schedule-actions' });
-		this.addTextButton(actions, '本周', () => void this.goToToday());
+		this.addTextButton(actions, t('board.thisWeek'), () => void this.goToToday());
 		// Steps are fine for a week or two; this is the way to a distant one.
-		this.addIconButton(
-			actions,
-			YEAR_VIEW_ICON,
-			'年度总览',
-			() => void this.plugin.activateYearView(),
+		this.addIconButton(actions, YEAR_VIEW_ICON, t('board.yearOverview'), () =>
+			void this.plugin.activateYearView(),
 		);
 		this.addIconButton(
 			actions,
 			this.showCompleted ? 'eye' : 'eye-off',
-			this.showCompleted ? '隐藏已完成' : '显示已完成',
+			t(this.showCompleted ? 'board.hideCompleted' : 'board.showCompleted'),
 			() => {
 				this.showCompleted = !this.showCompleted;
 				if (this.schedule) {
@@ -297,7 +315,7 @@ export class WeeklyScheduleView extends ItemView {
 				this.app.workspace.requestSaveLayout();
 			},
 		);
-		this.addIconButton(actions, 'file-text', '打开所在笔记', () => void this.openFile());
+		this.addIconButton(actions, 'file-text', t('board.openNote'), () => void this.openFile());
 	}
 
 	private addIconButton(
@@ -333,7 +351,7 @@ export class WeeklyScheduleView extends ItemView {
 
 		const column = board.createDiv({ cls: 'weekly-schedule-day' });
 		const header = column.createDiv({ cls: 'weekly-schedule-day-header' });
-		header.createSpan({ cls: 'weekly-schedule-day-name', text: day.label });
+		header.createSpan({ cls: 'weekly-schedule-day-name', text: dayLabel(day.id) });
 		const dateEl = header.createSpan({ cls: 'weekly-schedule-day-date' });
 		const date = this.datesOfWeek()[index] ?? null;
 		if (date) {
@@ -346,7 +364,7 @@ export class WeeklyScheduleView extends ItemView {
 			(total, quadrant) => total + quadrant.tasks.filter((task) => !task.done).length,
 			0,
 		);
-		count.setText(open > 0 ? `${open} 项` : '');
+		count.setText(open > 0 ? t('day.openCount', { count: open }) : '');
 
 		const today = date ? isSameDay(date, moment()) : false;
 		column.toggleClass('is-today', today);
@@ -371,15 +389,11 @@ export class WeeklyScheduleView extends ItemView {
 
 		const header = cell.createDiv({ cls: 'weekly-schedule-cell-header' });
 		if (definition) {
-			header.createSpan({
-				cls: 'weekly-schedule-cell-label',
-				text: definition.important ? '重要' : '不重要',
-			});
+			// The two halves of the priority, each styled as its own accent.
+			const [importance, urgency] = quadrantParts(definition.important, definition.urgent);
+			header.createSpan({ cls: 'weekly-schedule-cell-label', text: importance });
 			header.createSpan({ cls: 'weekly-schedule-cell-sep', text: '·' });
-			header.createSpan({
-				cls: 'weekly-schedule-cell-label',
-				text: definition.urgent ? '紧急' : '不紧急',
-			});
+			header.createSpan({ cls: 'weekly-schedule-cell-label', text: urgency });
 		}
 
 		// An empty cell stays empty: the add row below already says the cell can
@@ -397,7 +411,7 @@ export class WeeklyScheduleView extends ItemView {
 			attr: { type: 'button' },
 		});
 		add.createSpan({ cls: 'weekly-schedule-add-icon', text: '+' });
-		add.createSpan({ cls: 'weekly-schedule-add-label', text: '添加一个待办事项' });
+		add.createSpan({ cls: 'weekly-schedule-add-label', text: t('board.addTask') });
 		add.addEventListener('click', () => void this.addTask(day, quadrant));
 	}
 
@@ -429,17 +443,17 @@ export class WeeklyScheduleView extends ItemView {
 
 		const controls = row.createDiv({ cls: 'weekly-schedule-task-controls' });
 		// "↑ ↓" in the row matches the button hint: reorder, do not delete.
-		const up = this.addTaskControl(controls, 'chevron-up', '上移');
+		const up = this.addTaskControl(controls, 'chevron-up', t('board.moveUp'));
 		up.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.moveTask(quadrant, task.id, -1);
 		});
-		const down = this.addTaskControl(controls, 'chevron-down', '下移');
+		const down = this.addTaskControl(controls, 'chevron-down', t('board.moveDown'));
 		down.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.moveTask(quadrant, task.id, 1);
 		});
-		const remove = this.addTaskControl(controls, 'x', '删除');
+		const remove = this.addTaskControl(controls, 'x', t('board.delete'));
 		remove.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.removeTask(quadrant, task.id);
@@ -450,20 +464,20 @@ export class WeeklyScheduleView extends ItemView {
 			const menu = new Menu();
 			menu.addItem((item) =>
 				item
-					.setTitle('上移')
+					.setTitle(t('board.moveUp'))
 					.setIcon('chevron-up')
 					.onClick(() => this.moveTask(quadrant, task.id, -1)),
 			);
 			menu.addItem((item) =>
 				item
-					.setTitle('下移')
+					.setTitle(t('board.moveDown'))
 					.setIcon('chevron-down')
 					.onClick(() => this.moveTask(quadrant, task.id, 1)),
 			);
 			menu.addSeparator();
 			menu.addItem((item) =>
 				item
-					.setTitle('删除')
+					.setTitle(t('board.delete'))
 					.setIcon('trash')
 					.onClick(() => this.removeTask(quadrant, task.id)),
 			);
