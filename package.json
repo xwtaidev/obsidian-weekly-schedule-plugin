@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-weekly-schedule-plugin",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"description": "Plan each week in four priority quadrants, stored as plain Markdown you can edit by hand.",
 	"main": "main.js",
 	"type": "module",
