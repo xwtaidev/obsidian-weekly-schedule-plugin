@@ -16,6 +16,10 @@ this week · 5 done · 42% complete** — counted from the board as you edit it,
 pinned to the bottom of the pane so a week long enough to scroll does not take its
 own summary with it. A week with nothing in it says so instead.
 
+The day you are in carries an accent rule under its heading, and the mark follows
+the calendar on its own: a board or year overview left open past midnight moves it
+to the new day, with nothing to reload.
+
 Both views follow your Obsidian theme; the screenshots above and below are dark
 and light respectively. Expand for the board in light mode and the year overview
 in dark mode:
@@ -193,6 +197,7 @@ src/
     inline-editor.ts             # Inline plain-text editing for task rows
   utils/
     date.ts                      # Week arithmetic and file naming
+    day-watch.ts                 # Noticing the calendar date roll over
     helpers.ts                   # Shared helpers, including grid fitting
 scripts/
   deploy.mjs                     # The npm run deploy helper

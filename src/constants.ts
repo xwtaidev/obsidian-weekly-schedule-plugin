@@ -19,6 +19,14 @@ export const SAVE_DEBOUNCE_MS = 500;
 export const LOCALE_POLL_MS = 2000;
 
 /**
+ * How often the calendar date is re-checked. A pane left open for days would
+ * otherwise keep drawing the day it was opened on as today, and no event tells
+ * the plugin that midnight passed. Only a date comparison happens per check, so
+ * this bounds how long a stale highlight can survive rather than what it costs.
+ */
+export const DAY_POLL_MS = 30000;
+
+/**
  * Eisenhower quadrants, ordered exactly as they appear in the board:
  * urgent first, important first within each urgency band.
  *

@@ -211,6 +211,26 @@ export class WeeklyScheduleView extends ItemView {
 		}
 	}
 
+	/**
+	 * Moves the highlight to the day that just started. Called when the calendar
+	 * date rolls over while the board is open.
+	 *
+	 * Nothing is reloaded and the board is not redrawn: a new date never changes
+	 * the week on screen, and replacing the DOM would throw away whatever a caret
+	 * was sitting in. When the new day falls outside the week on screen — the
+	 * board is then showing a week that is over — no column is marked at all.
+	 */
+	onDayChange(): void {
+		if (!this.isOpen || !this.boardEl) {
+			return;
+		}
+
+		const dates = this.datesOfWeek();
+		this.boardEl
+			.querySelectorAll<HTMLElement>('.weekly-schedule-day')
+			.forEach((column, index) => this.applyToday(column, dates[index] ?? null));
+	}
+
 	private get weekStartDay(): number {
 		return this.plugin.settings.weekStartsOn;
 	}
@@ -405,14 +425,25 @@ export class WeeklyScheduleView extends ItemView {
 		);
 		count.setText(open > 0 ? t('day.openCount', { count: open }) : '');
 
-		const today = date ? isSameDay(date, moment()) : false;
-		column.toggleClass('is-today', today);
-		header.toggleClass('is-today', today);
+		this.applyToday(column, date);
 
 		const cells = column.createDiv({ cls: 'weekly-schedule-cells' });
 		for (const quadrant of day.quadrants) {
 			this.renderQuadrant(cells, day, quadrant);
 		}
+	}
+
+	/**
+	 * Marks a day column as today's, as one accent rule under its heading.
+	 *
+	 * The styling hangs off the column, and the header carries the class too
+	 * because a theme may target either; both are written here so the render and
+	 * the day rollover cannot disagree about which day is today.
+	 */
+	private applyToday(column: HTMLElement, date: Moment | null): void {
+		const today = date !== null && isSameDay(date, moment());
+		column.toggleClass('is-today', today);
+		column.querySelector('.weekly-schedule-day-header')?.toggleClass('is-today', today);
 	}
 
 	/** Calendar dates of the displayed week, in column order. */

@@ -1,5 +1,6 @@
 import { Notice, Plugin, moment } from 'obsidian';
 import {
+	DAY_POLL_MS,
 	LOCALE_POLL_MS,
 	VIEW_TYPE_WEEKLY_SCHEDULE,
 	VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
@@ -20,6 +21,7 @@ import { ScheduleStore } from './store';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
 import { weekFilePath } from './utils/date';
+import { watchDayChange } from './utils/day-watch';
 import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
 import type { TranslationKey } from './i18n';
 import type { Moment } from './utils/date';
@@ -101,6 +103,15 @@ export default class WeeklySchedulePlugin extends Plugin {
 		// every render checks it too, so a freshly opened pane is never stale.
 		this.registerInterval(window.setInterval(() => this.applyLocale(), LOCALE_POLL_MS));
 
+		// A pane can stay open for days, and nothing else would tell it that the
+		// day it drew as today is over. The date is polled, and re-checked the
+		// moment the window is looked at again — a laptop opened the next morning
+		// then updates at once rather than on the next tick.
+		const checkDay = watchDayChange(() => this.applyNewDay());
+		this.registerInterval(window.setInterval(checkDay, DAY_POLL_MS));
+		this.registerDomEvent(window, 'focus', checkDay);
+		this.registerDomEvent(document, 'visibilitychange', checkDay);
+
 		// Keep the board in sync when its file is edited outside the plugin,
 		// for example in a note or by a sync service.
 		this.registerEvent(
@@ -173,6 +184,16 @@ export default class WeeklySchedulePlugin extends Plugin {
 		// to be read — or rewritten.
 		this.viewOf()?.onLocaleChange();
 		this.yearViewOf()?.onLocaleChange();
+	}
+
+	/**
+	 * Adopts a new calendar date. A day change alters nothing a week holds, so
+	 * both views only redraw what is drawn relative to today: the highlighted
+	 * day on the board, and the current-week tile in the year overview.
+	 */
+	private applyNewDay(): void {
+		this.viewOf()?.onDayChange();
+		this.yearViewOf()?.onDayChange();
 	}
 
 	/** Leaves of both views, the panes whose titles Obsidian draws for us. */

@@ -57,6 +57,8 @@ export class WeeklyScheduleYearView extends ItemView {
 	private loadToken = 0;
 	private isOpen = false;
 	private boardEl: HTMLElement | null = null;
+	/** Week start the tiles were drawn with, so a new week is noticed. */
+	private renderedWeekStart: string | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -136,6 +138,25 @@ export class WeeklyScheduleYearView extends ItemView {
 		if (this.isOpen) {
 			this.renderBoard();
 		}
+	}
+
+	/**
+	 * Redraws after the calendar date rolled over.
+	 *
+	 * Only a new week changes anything here: which tile is the current week,
+	 * which weeks count as past, and therefore the heat and the totals. A date
+	 * that stays inside the week already drawn leaves the overview untouched.
+	 * The grid is rebuilt from the cells this view already holds, so no file is
+	 * read to follow the date.
+	 */
+	onDayChange(): void {
+		if (!this.isOpen || this.renderedWeekStart === null) {
+			return;
+		}
+		if (this.currentWeekStart() === this.renderedWeekStart) {
+			return;
+		}
+		this.renderBoard();
 	}
 
 	async shiftYear(delta: number): Promise<void> {
@@ -303,9 +324,8 @@ export class WeeklyScheduleYearView extends ItemView {
 		this.boardEl.tabIndex = 0;
 		this.registerDomEvent(this.boardEl, 'keydown', (event) => this.handleKeydown(event));
 
-		const currentWeekStart = dateKey(
-			startOfWeek(moment(), this.plugin.settings.weekStartsOn),
-		);
+		const currentStart = this.currentWeekStart();
+		this.renderedWeekStart = currentStart;
 		const openPath = this.plugin.activeBoardPath;
 		this.cells.forEach((cell, index) => {
 			const tile = this.boardEl?.createEl('button', {
@@ -316,11 +336,11 @@ export class WeeklyScheduleYearView extends ItemView {
 				return;
 			}
 
-			tile.toggleClass('is-current', dateKey(cell.start) === currentWeekStart);
+			tile.toggleClass('is-current', dateKey(cell.start) === currentStart);
 			tile.toggleClass('is-open', cell.path === openPath);
 			tile.toggleClass('is-empty', cell.stats.total === 0);
 			tile.toggleClass('is-past', this.isPastWeek(cell));
-			tile.toggleClass('is-future', !this.isPastWeek(cell) && dateKey(cell.start) !== currentWeekStart);
+			tile.toggleClass('is-future', !this.isPastWeek(cell) && dateKey(cell.start) !== currentStart);
 			tile.toggleClass('is-selected', index === this.selectedIndex);
 			tile.dataset.index = String(index);
 
@@ -409,10 +429,14 @@ export class WeeklyScheduleYearView extends ItemView {
 		summary.createSpan({ text: t('year.doneSuffix', { done, total }) });
 	}
 
+	/** Week start (`YYYY-MM-DD`) of the week today falls in, in the configured order. */
+	private currentWeekStart(): string {
+		return dateKey(startOfWeek(moment(), this.plugin.settings.weekStartsOn));
+	}
+
 	/** Whether a week has finished, i.e. it is not the current or a future week. */
 	private isPastWeek(cell: WeekCell): boolean {
-		const currentStart = startOfWeek(moment(), this.plugin.settings.weekStartsOn);
-		return dateKey(cell.start) < dateKey(currentStart);
+		return dateKey(cell.start) < this.currentWeekStart();
 	}
 
 	private addIconButton(
