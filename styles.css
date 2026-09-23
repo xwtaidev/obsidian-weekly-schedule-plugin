@@ -28,7 +28,6 @@ inside each day.
 	   grid, because an inline value on the container cannot override it there. */
 	--ws-columns: 3;
 
-	padding: 0;
 	overflow: auto;
 }
 
@@ -48,13 +47,17 @@ inside each day.
 /* The year overview shares the toolbar and the leaf rules above, but none of
    the quadrant colours, since its tiles are a single neutral accent. */
 .weekly-schedule-year-container {
-	padding: 0;
 	overflow: auto;
 }
 
-/* The board uses the full pane width instead of a column-limited note width. */
+/* Both views use the full pane instead of a column-limited note width. Obsidian
+   insets a view's content by 12px on the sides and 32px at the bottom, and that
+   padding has to be removed rather than worked around: a sticky child cannot
+   leave its containing block, so with it the toolbar stops 12px short of the
+   pane's top and the totals strip 32px short of its bottom, and the board shows
+   through both gaps as it scrolls behind them. */
 .weekly-schedule-leaf .view-content {
-	--file-margins: 0;
+	padding: 0;
 }
 
 /* Hide the view header: the toolbar below carries the title and navigation. */
@@ -461,7 +464,10 @@ inside each day.
 	position: sticky;
 	bottom: 0;
 	z-index: 2;
-	padding: 8px 18px;
+	/* The pane's own bottom padding is gone with the rest of the view's padding,
+	   so the notch inset is carried here instead: the strip's background has to
+	   reach the pane's edge, or the board shows through the gap beneath it. */
+	padding: 8px 18px calc(8px + env(safe-area-inset-bottom, 0px));
 	border-top: 1px solid var(--background-modifier-border);
 	background-color: var(--background-primary);
 	color: var(--text-muted);

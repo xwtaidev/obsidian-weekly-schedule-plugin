@@ -206,7 +206,12 @@ scripts/
 ```
 
 Both views size their grid from the pane they are in rather than from the window,
-because an Obsidian pane is often a sidebar or half a split.
+because an Obsidian pane is often a sidebar or half a split. Both also remove the
+padding Obsidian gives a view's content — 12px on the sides and 32px at the
+bottom — because a sticky child cannot leave its containing block: with that
+padding in place the toolbar stops 12px short of the pane's top and the totals
+strip 32px short of its bottom, and the board shows through both gaps as it
+scrolls behind them.
 
 ### Adding a language
 
