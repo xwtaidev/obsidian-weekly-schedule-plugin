@@ -18,17 +18,19 @@ export function setStubLanguage(next: string): void {
 type StartUnit = 'day' | 'year' | 'isoWeek';
 
 class StubMoment {
-	constructor(private readonly date: Date) {}
+	// The field is not named `date`: a field of that name shadows the `date()`
+	// accessor below, and `format()` calls it.
+	constructor(private readonly value: Date) {}
 
 	clone(): StubMoment {
-		return new StubMoment(new Date(this.date.getTime()));
+		return new StubMoment(new Date(this.value.getTime()));
 	}
 
 	add(count: number, unit: string): StubMoment {
 		if (unit !== 'days') {
 			throw new Error(`stub moment: unsupported add unit ${unit}`);
 		}
-		const next = new Date(this.date.getTime());
+		const next = new Date(this.value.getTime());
 		next.setDate(next.getDate() + count);
 		return new StubMoment(next);
 	}
@@ -38,7 +40,7 @@ class StubMoment {
 	}
 
 	startOf(unit: StartUnit): StubMoment {
-		const next = new Date(this.date.getTime());
+		const next = new Date(this.value.getTime());
 		if (unit === 'day') {
 			next.setHours(0, 0, 0, 0);
 		}
@@ -55,26 +57,26 @@ class StubMoment {
 	}
 
 	day(): number {
-		return this.date.getDay();
+		return this.value.getDay();
 	}
 
 	month(): number {
-		return this.date.getMonth();
+		return this.value.getMonth();
 	}
 
 	date(): number {
-		return this.date.getDate();
+		return this.value.getDate();
 	}
 
 	year(): number {
-		return this.date.getFullYear();
+		return this.value.getFullYear();
 	}
 
 	diff(other: StubMoment, unit: string): number {
 		if (unit !== 'days') {
 			throw new Error(`stub moment: unsupported diff unit ${unit}`);
 		}
-		return Math.round((this.date.getTime() - other.date.getTime()) / 86400000);
+		return Math.round((this.value.getTime() - other.value.getTime()) / 86400000);
 	}
 
 	format(pattern: string): string {
@@ -89,7 +91,7 @@ class StubMoment {
 	}
 
 	toDate(): Date {
-		return new Date(this.date.getTime());
+		return new Date(this.value.getTime());
 	}
 }
 
