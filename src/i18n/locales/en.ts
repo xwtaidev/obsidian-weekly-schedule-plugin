@@ -16,6 +16,7 @@ export const en = {
 	'command.currentWeek': 'Go to the current week',
 	'command.previousWeek': 'Go to the previous week',
 	'command.nextWeek': 'Go to the next week',
+	'command.carryOver': 'Bring unfinished tasks from the previous week into this week',
 	'view.board': 'Weekly schedule',
 	'view.year': 'Weekly schedule: year',
 
@@ -97,6 +98,35 @@ export const en = {
 		'Weekly schedule: moved {count} file into year folders.|Weekly schedule: moved {count} files into year folders.',
 	'migrate.resultPartial':
 		'Weekly schedule: moved {moved}, failed {failed}. See the developer console.',
+
+	// Carrying the previous week's unfinished tasks into the week on screen. The
+	// two counted strings differ only in whether anything was already there.
+	'carry.none': 'Weekly schedule: nothing from the previous week needs bringing over.',
+	'carry.result':
+		'Weekly schedule: brought {count} task over from {from} into {to}.|Weekly schedule: brought {count} tasks over from {from} into {to}.',
+	'carry.resultSkipped':
+		'Weekly schedule: brought {count} task over from {from} into {to}, leaving {skipped} already there.|Weekly schedule: brought {count} tasks over from {from} into {to}, leaving {skipped} already there.',
+	'carry.allThere':
+		'Weekly schedule: the {count} task you picked is already in {to}; {from} has been marked.|Weekly schedule: all {count} tasks you picked are already in {to}; {from} has been marked.',
+	'carry.failed':
+		'Weekly schedule: nothing was brought over, as the week could not be written. See the developer console.',
+	'carry.markFailed':
+		'Weekly schedule: the tasks were brought over, but {from} could not be marked. See the developer console.',
+
+	// The dialog that asks which of the previous week's tasks to bring over. The
+	// mark is written into the previous week's file, next to the task it refers
+	// to, so it names the week the task went to rather than saying "next week" —
+	// a file read months later cannot tell which week that would have been.
+	'carry.modalTitle': 'Bring unfinished tasks from {from} into {to}',
+	'carry.modalDesc':
+		'Pick the tasks to bring over. Each one keeps the day and the priority cell it was planned in.',
+	'carry.alreadyThere': 'already in this week',
+	'carry.modalNote':
+		'{count} task is already in {to} and will not be added twice.|{count} tasks are already in {to} and will not be added twice.',
+	'carry.confirm': 'Bring 1 task over|Bring {count} tasks over',
+	'carry.cancel': 'Cancel',
+	'carry.mark': ' (carried over to {week})',
+
 	'list.separator': ', ',
 };
 

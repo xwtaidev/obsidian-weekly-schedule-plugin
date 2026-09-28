@@ -9,7 +9,14 @@ Layout: three days per row, three rows (3 + 3 + 1). Quadrants stack vertically
 inside each day.
 */
 
-.weekly-schedule-container {
+/*
+The palette is declared on the two scopes that draw a quadrant in colour: the
+board, and the carry-over dialog whose tag names the cell a task will land in.
+It is deliberately not on `:root` — another plugin's `--ws-*` would collide with
+it — so a new surface that colours a quadrant has to be added here.
+*/
+.weekly-schedule-container,
+.weekly-schedule-carry-modal {
 	/* Quadrant colour has two tiers so both stay legible: `-rail` draws the 2px
 	   margin bar (non-text, needs 3:1) and `-label` colours the 11px text
 	   (needs 4.5:1). These light-theme values were solved against #ffffff. */
@@ -21,7 +28,11 @@ inside each day.
 	--ws-q2-label: #8469b4;
 	--ws-q3-label: #4a79ad;
 	--ws-q4-label: #73777d;
+}
 
+/* The board's own layout, which nothing outside it wants: the dialog borrows
+   the palette and only the palette. */
+.weekly-schedule-container {
 	--ws-gap-column: 32px;
 	--ws-gap-row: 48px;
 	/* Fitted to the pane by the view; the declaration lives here, not on the
@@ -33,7 +44,8 @@ inside each day.
 
 /* Solved against #1e1e1e; the label tier is blended toward white. Obsidian
    puts `.theme-dark` on the body, which still matches this descendant. */
-.theme-dark .weekly-schedule-container {
+.theme-dark .weekly-schedule-container,
+.theme-dark .weekly-schedule-carry-modal {
 	--ws-q1-rail: #b6575f;
 	--ws-q2-rail: #8a6dbb;
 	--ws-q3-rail: #4f81b8;
@@ -215,22 +227,29 @@ inside each day.
 	margin-top: 14px;
 }
 
-.weekly-schedule-cell-q1 {
+/* The one place a quadrant is mapped to its colours. A cell wears it, and so
+   does the tag that names a cell in the carry-over dialog — the dialog draws
+   the same words as a cell heading, so it reads them in the same colour. */
+.weekly-schedule-cell-q1,
+.weekly-schedule-carry-tag-q1 {
 	--ws-accent: var(--ws-q1-rail);
 	--ws-accent-label: var(--ws-q1-label);
 }
 
-.weekly-schedule-cell-q2 {
+.weekly-schedule-cell-q2,
+.weekly-schedule-carry-tag-q2 {
 	--ws-accent: var(--ws-q2-rail);
 	--ws-accent-label: var(--ws-q2-label);
 }
 
-.weekly-schedule-cell-q3 {
+.weekly-schedule-cell-q3,
+.weekly-schedule-carry-tag-q3 {
 	--ws-accent: var(--ws-q3-rail);
 	--ws-accent-label: var(--ws-q3-label);
 }
 
-.weekly-schedule-cell-q4 {
+.weekly-schedule-cell-q4,
+.weekly-schedule-carry-tag-q4 {
 	--ws-accent: var(--ws-q4-rail);
 	--ws-accent-label: var(--ws-q4-label);
 }
@@ -275,8 +294,11 @@ inside each day.
 }
 
 /* Scoped for the same reason as the add row: `input[type=checkbox]` (0,1,1) in
-   Obsidian's stylesheet otherwise keeps its own size, radius and tick. */
-.weekly-schedule-task .weekly-schedule-checkbox {
+   Obsidian's stylesheet otherwise keeps its own size, radius and tick. The
+   carry-over dialog lists the same kind of choice, so it shares the box — and
+   the accent it is filled with is the colour its own container defines. */
+.weekly-schedule-task .weekly-schedule-checkbox,
+.weekly-schedule-carry-item .weekly-schedule-checkbox {
 	flex: 0 0 auto;
 	appearance: none;
 	width: 13px;
@@ -292,17 +314,20 @@ inside each day.
 		background-color 120ms ease;
 }
 
-.weekly-schedule-task .weekly-schedule-checkbox:hover {
+.weekly-schedule-task .weekly-schedule-checkbox:hover,
+.weekly-schedule-carry-item .weekly-schedule-checkbox:hover {
 	border-color: var(--ws-accent);
 }
 
 /* Obsidian draws its own tick in `::after`, sized by `--checkbox-size` — larger
    than this box, so it landed on top of the tick below and doubled it. */
-.weekly-schedule-list .weekly-schedule-task .weekly-schedule-checkbox:checked::after {
+.weekly-schedule-list .weekly-schedule-task .weekly-schedule-checkbox:checked::after,
+.weekly-schedule-carry-item .weekly-schedule-checkbox:checked::after {
 	content: none;
 }
 
-.weekly-schedule-task .weekly-schedule-checkbox:checked {
+.weekly-schedule-task .weekly-schedule-checkbox:checked,
+.weekly-schedule-carry-item .weekly-schedule-checkbox:checked {
 	border-color: var(--ws-accent);
 	background-color: var(--ws-accent);
 	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
@@ -780,6 +805,103 @@ inside each day.
 	.weekly-schedule-year-meta {
 		margin-top: 2px;
 	}
+}
+
+/* ---------- Carry-over dialog ---------- */
+
+/* The dialog sits outside the board, so it inherits neither the board's tokens
+   nor its grid, and it stays deliberately plain: its rows are a reading list of
+   what is left over and where it would land, not a second board. */
+.weekly-schedule-carry-modal {
+	/* What the dialog itself draws with — the checkbox tick, the hover — is the
+	   theme's accent. A quadrant's colours are layered on lower down, on the tag
+	   that names the cell a task is going to. */
+	--ws-accent: var(--interactive-accent);
+	width: 560px;
+}
+
+.weekly-schedule-carry-desc {
+	margin: -4px 0 16px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-carry-list {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	/* A long week scrolls rather than pushing the buttons off the dialog. */
+	max-height: 46vh;
+	overflow: auto;
+	padding-right: 4px;
+}
+
+/* The same rule-under-the-name as a day column: the grouping has to be legible
+   at a glance, since the day is what the task's position will be taken from. */
+.weekly-schedule-carry-day {
+	margin-bottom: 4px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-carry-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 7px;
+	padding: 2px 4px;
+	border-radius: 4px;
+	font-size: 13px;
+	line-height: 1.5;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+.weekly-schedule-carry-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.weekly-schedule-carry-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* Which cell the task lands in, and whether it is there already. Both are read
+   at a glance, and neither deserves the emphasis of the task itself. */
+.weekly-schedule-carry-tag,
+.weekly-schedule-carry-flag {
+	flex: 0 0 auto;
+	margin-top: 1px;
+	font-size: 11px;
+	line-height: 1.5;
+	white-space: nowrap;
+}
+
+/* The two halves of the priority, in the colour of the cell they are going to —
+   the same pairing the board's cell heading draws, so the tag needs no reading
+   to say which cell a row belongs to. The colour comes from the tag's own
+   quadrant class, mapped above with the cells'. */
+.weekly-schedule-carry-tag {
+	color: var(--ws-accent-label);
+	font-weight: 600;
+}
+
+.weekly-schedule-carry-tag-sep {
+	color: var(--text-faint);
+	font-weight: 400;
+}
+
+.weekly-schedule-carry-flag {
+	color: var(--text-faint);
+}
+
+.weekly-schedule-carry-note {
+	margin-top: 16px;
+	font-size: 11px;
+	color: var(--text-muted);
 }
 
 /* ---------- Narrow panes ---------- */

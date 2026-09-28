@@ -5,7 +5,7 @@ import {
 	VIEW_TYPE_WEEKLY_SCHEDULE,
 	VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
 } from './constants';
-import { getLocaleRevision, syncLocale, t } from './i18n';
+import { getLocale, getLocaleRevision, syncLocale, t, tp } from './i18n';
 import {
 	DEFAULT_SETTINGS,
 	WeeklyScheduleSettings,
@@ -17,12 +17,15 @@ import {
 	notifyYearFolderResult,
 	planYearFolders,
 } from './migrate';
+import { applyCarryOver, markCarried, planCarryOver } from './carry-over';
 import { ScheduleStore } from './store';
+import { CarryOverModal } from './ui/carry-over-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
-import { weekFilePath } from './utils/date';
+import { dateKey, shiftWeek, startOfWeek, weekFilePath, weekKey } from './utils/date';
 import { watchDayChange } from './utils/day-watch';
 import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
+import type { CarryOverItem } from './carry-over';
 import type { TranslationKey } from './i18n';
 import type { Moment } from './utils/date';
 
@@ -93,6 +96,10 @@ export default class WeeklySchedulePlugin extends Plugin {
 		);
 
 		this.addLocalizedCommand('next-week', 'command.nextWeek', () => void this.navigateBy(1));
+
+		this.addLocalizedCommand('carry-over-last-week', 'command.carryOver', () =>
+			void this.carryOverFromLastWeek(),
+		);
 
 		this.settingTab = new WeeklyScheduleSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
@@ -278,6 +285,114 @@ export default class WeeklySchedulePlugin extends Plugin {
 	/** Vault path of the file backing the week that starts at `date`. */
 	pathForWeek(date: Moment): string {
 		return weekFilePath(this.settings.folder, date);
+	}
+
+	/**
+	 * Brings the unfinished tasks of the previous week into the week on screen.
+	 *
+	 * The previous week is the one before whatever the board shows, so this works
+	 * on the week being looked at rather than only on the current one; with no
+	 * board open it is the current week. Nothing is taken out of the previous
+	 * week — the tasks are copied over — and a task the target cell already holds
+	 * is skipped, so running this twice changes nothing.
+	 *
+	 * Which of those tasks still deserve a place in the new week is the user's
+	 * call, so this asks before it moves anything.
+	 *
+	 * Public because the board's toolbar offers it as a button.
+	 */
+	async carryOverFromLastWeek(): Promise<void> {
+		const view = this.viewOf();
+		const targetStart =
+			view?.currentWeekStart ?? dateKey(startOfWeek(moment(), this.settings.weekStartsOn));
+		const sourceStart = dateKey(shiftWeek(this.momentOf(targetStart), -1));
+
+		// Commit the board before reading the weeks: task text lives in the DOM
+		// until the editor blurs, and both weeks are read from memory below.
+		await view?.commitPendingEdits();
+
+		const target = await this.store.load(
+			targetStart,
+			this.pathForWeek(this.momentOf(targetStart)),
+		);
+		const source = await this.store.load(
+			sourceStart,
+			this.pathForWeek(this.momentOf(sourceStart)),
+		);
+		const plan = planCarryOver(source, target);
+
+		if (plan.items.length === 0) {
+			new Notice(t('carry.none'));
+			return;
+		}
+
+		const weeks = {
+			from: weekKey(this.momentOf(sourceStart)),
+			to: weekKey(this.momentOf(targetStart)),
+		};
+		new CarryOverModal(this.app, { ...weeks, items: plan.items }, (chosen) => {
+			void this.applyCarryOverChoice(chosen, weeks, { source: sourceStart, target: targetStart });
+		}).open();
+	}
+
+	/**
+	 * Applies what the dialog confirmed: the chosen tasks are added to the week
+	 * they were carried into, and the week they came from is marked with where
+	 * they went.
+	 *
+	 * Both weeks are read from the store again rather than carried over from the
+	 * planning above. The dialog can sit open while a week is edited underneath
+	 * it, and what the store hands out is what a write serializes, so reading
+	 * here is what keeps a stale plan from writing a stale week.
+	 */
+	private async applyCarryOverChoice(
+		chosen: readonly CarryOverItem[],
+		weeks: { from: string; to: string },
+		start: { source: string; target: string },
+	): Promise<void> {
+		const view = this.viewOf();
+		const sourcePath = this.pathForWeek(this.momentOf(start.source));
+		const targetPath = this.pathForWeek(this.momentOf(start.target));
+
+		const source = await this.store.load(start.source, sourcePath);
+		const target = await this.store.load(start.target, targetPath);
+
+		const added = applyCarryOver(target, chosen);
+		// The mark goes on in the language the file is already written in, not the
+		// interface language: a week's file keeps the language it was written in.
+		markCarried(source, chosen, weeks.to, source.locale ?? getLocale());
+
+		// The week the work went into is written first: a previous week marked as
+		// carried, with nothing to show for it in the week it names, is the worse
+		// half to be left holding.
+		if (!(await this.store.flush(targetPath))) {
+			// The file could not be written. Take the change back rather than leave
+			// a board showing work that no file holds; the source never changed, so
+			// nothing else has to be undone.
+			this.store.forget(targetPath);
+			this.store.forget(sourcePath);
+			await view?.reloadWeek();
+			new Notice(t('carry.failed'));
+			return;
+		}
+
+		if (!(await this.store.flush(sourcePath))) {
+			new Notice(t('carry.markFailed', weeks));
+			return;
+		}
+
+		// Counted apart because the two differ in what the target week gained: a
+		// task that was already there gained it nothing, and only picked up a mark.
+		const there = chosen.length - added;
+		if (added === 0) {
+			new Notice(tp('carry.allThere', chosen.length, weeks));
+			return;
+		}
+		new Notice(
+			there > 0
+				? tp('carry.resultSkipped', added, { ...weeks, skipped: there })
+				: tp('carry.result', added, weeks),
+		);
 	}
 
 	/** Path currently shown by the board, or null when no board is open. */

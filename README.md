@@ -46,6 +46,36 @@ Fill depth is the completion rate, in six steps. Finished weeks are filled, week
 still to come are not, and weeks with no tasks show a dash. The year overview is a
 separate pane, so it can stay open beside the board while you work.
 
+## Starting from last week
+
+Last week rarely ends empty. **Bring unfinished tasks from the previous week into
+this week** gathers what is left in one step — from the command palette, or from
+the arrow button in the board's toolbar.
+
+It asks first. A dialog lists everything the previous week left unfinished, one
+row per task, each with the day and the priority cell it would land in. Everything
+is selected and the button follows the boxes, so a whole week moves over in one
+click and a single task drops out of the list just as easily. A task the target
+week already holds is shown with **already in this week** rather than hidden, and
+is not added twice.
+
+A task keeps the day and the priority cell it was planned in, so the shape of the
+week survives the move instead of collapsing into one pile, and only unfinished
+tasks move. Nothing is taken out of the week they came from: this copies, it does
+not cut, so a past week stays an honest record of what was planned then. What was
+carried is marked there, in that file's own language:
+
+```markdown
+- [ ] Fix the crash (carried over to 2026-W40)
+```
+
+The mark names the week the task went to rather than saying "next week", because a
+file read months later cannot tell which week that would have been. It is taken off
+before a task is compared or copied, so a mark never travels into the next week,
+and confirming the same week twice changes nothing. A notice reports how many tasks
+were brought over and how many were already there. The week carried into is the one
+on screen, so open the week you want to plan.
+
 ## How tasks are stored
 
 Standard Markdown checkboxes, one file per week, grouped in a folder per ISO year:
@@ -157,6 +187,7 @@ npm run dev        # rebuild main.js on change
 npm run build      # type check + production build
 npm run lint       # ESLint with Obsidian-specific rules
 npm run check:i18n # verify the localization and file-heading rules
+npm run check:carry # verify the rules for carrying last week's work over
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
@@ -171,6 +202,15 @@ saved file keeps its own heading language, a new one follows the interface
 language, every language's headings still parse, and the dates, plurals and
 notices read correctly in both languages.
 
+`npm run check:carry` does the same for carrying unfinished work into the next
+week: only unfinished tasks are offered and each keeps its day and its quadrant,
+the tasks that were carried are marked in the week they came from and nothing is
+taken out of it, a mark is never part of a task's words — so it neither travels
+into the next week nor turns one task into two — a task the target cell already
+holds is not added again, and the week before a target is located the way the board
+locates weeks, including across the ISO year boundary, where the source week can
+live in the previous year's folder.
+
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
 
@@ -183,6 +223,7 @@ src/
   store.ts                       # Reading/writing week files, caching, debounced saves
   markdown.ts                    # Markdown <-> board conversion
   migrate.ts                     # Moving week files into year folders
+  carry-over.ts                  # Carrying last week's unfinished work over
   constants.ts                   # View types, quadrants, days, defaults
   types.ts                       # Data model
   i18n/
@@ -194,6 +235,7 @@ src/
   ui/
     weekly-schedule-view.ts      # The board
     weekly-schedule-year-view.ts # Year overview
+    carry-over-modal.ts          # The dialog that picks what to carry over
     inline-editor.ts             # Inline plain-text editing for task rows
   utils/
     date.ts                      # Week arithmetic and file naming
@@ -202,6 +244,7 @@ src/
 scripts/
   deploy.mjs                     # The npm run deploy helper
   i18n-check/                    # The npm run check:i18n helper
+  carry-check/                   # The npm run check:carry helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 

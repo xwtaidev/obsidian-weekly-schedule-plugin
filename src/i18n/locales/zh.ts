@@ -8,6 +8,7 @@ export const zh: Translations = {
 	'command.currentWeek': '回到本周',
 	'command.previousWeek': '上一周',
 	'command.nextWeek': '下一周',
+	'command.carryOver': '把上周未完成的带入本周',
 	'view.board': '周计划',
 	'view.year': '周计划：年度',
 
@@ -74,5 +75,21 @@ export const zh: Translations = {
 	'migrate.movedFiles': '周计划：已移动 {count} 个文件到 {years} 文件夹。',
 	'migrate.result': '周计划：已整理 {count} 个文件到年份文件夹。',
 	'migrate.resultPartial': '周计划：已移动 {moved} 个，失败 {failed} 个。详见开发者控制台。',
+
+	'carry.none': '周计划：上周没有需要带入的未完成项。',
+	'carry.result': '周计划：已把 {from} 的 {count} 项未完成带入 {to}。',
+	'carry.resultSkipped': '周计划：已把 {from} 的 {count} 项未完成带入 {to}，{skipped} 项已在其中。',
+	'carry.allThere': '周计划：勾选的 {count} 项都已在 {to} 中，{from} 已标记。',
+	'carry.failed': '周计划：写入失败，本次没有带入。详见开发者控制台。',
+	'carry.markFailed': '周计划：已带入，但 {from} 的标记没能写入。详见开发者控制台。',
+
+	'carry.modalTitle': '把 {from} 未完成的工作带入 {to}',
+	'carry.modalDesc': '勾选要带入的工作。每项都会落到原来的星期和优先级格子里。',
+	'carry.alreadyThere': '已在本周',
+	'carry.modalNote': '{count} 项已在 {to} 中，不会重复添加。',
+	'carry.confirm': '带入 {count} 项',
+	'carry.cancel': '取消',
+	'carry.mark': '（已带入 {week}）',
+
 	'list.separator': '、',
 };

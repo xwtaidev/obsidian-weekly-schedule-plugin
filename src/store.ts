@@ -119,9 +119,13 @@ export class ScheduleStore {
 		return entry !== undefined && serializeSchedule(entry.schedule) !== entry.raw;
 	}
 
-	/** Writes immediately, e.g. before switching weeks or unloading. */
-	async flush(path: string): Promise<void> {
-		await this.persist(path);
+	/**
+	 * Writes immediately, e.g. before switching weeks or unloading. Reports
+	 * whether the file now holds what memory holds, so a caller whose change is
+	 * worth announcing — or worth taking back — can tell the difference.
+	 */
+	async flush(path: string): Promise<boolean> {
+		return this.persist(path);
 	}
 
 	async flushAll(): Promise<void> {
@@ -197,10 +201,10 @@ export class ScheduleStore {
 		return '';
 	}
 
-	private async persist(path: string): Promise<void> {
+	private async persist(path: string): Promise<boolean> {
 		const entry = this.cache.get(path);
 		if (!entry) {
-			return;
+			return true;
 		}
 
 		const content = serializeSchedule(entry.schedule);
@@ -208,16 +212,18 @@ export class ScheduleStore {
 
 		// Nothing to do when the file is already exactly what we would write.
 		if (content === entry.raw && existing instanceof TFile) {
-			return;
+			return true;
 		}
 
 		this.pendingWrites.add(path);
 		try {
 			await this.writeFile(path, content);
 			entry.raw = content;
+			return true;
 		} catch (error) {
 			console.error(`Weekly schedule: could not write ${path}`, error);
 			// The schedule stays in memory, so the next edit retries the write.
+			return false;
 		} finally {
 			this.pendingWrites.delete(path);
 		}

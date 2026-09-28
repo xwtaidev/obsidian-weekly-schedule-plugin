@@ -199,6 +199,34 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	/**
+	 * Commits whatever the inline editor holds and writes the week out.
+	 *
+	 * Meant to be called before the plugin rewrites this week itself, which reads
+	 * the week from memory: task text lives in the DOM until the editor blurs, so
+	 * a rewrite that skipped this could write the week without it. Writing the
+	 * week out as well is what lets the caller take a failed rewrite back without
+	 * losing that text with it.
+	 */
+	async commitPendingEdits(): Promise<void> {
+		this.syncFocusedEditor();
+		await this.plugin.store.flush(this.activePath);
+	}
+
+	/**
+	 * Takes the displayed week from the file again and redraws it.
+	 *
+	 * Used after the plugin itself rewrote this week — carrying last week's
+	 * unfinished work over is the one case of that. Forgetting the week rather
+	 * than redrawing from memory is deliberate: the board must not keep showing a
+	 * schedule the store may have replaced while the pane was open.
+	 */
+	async reloadWeek(): Promise<void> {
+		this.plugin.store.forget(this.activePath);
+		this.schedule = null;
+		await this.render();
+	}
+
+	/**
 	 * Redraws the labels after the interface language changed.
 	 *
 	 * Nothing is reloaded and nothing is written: wording is derived from ids at
@@ -358,6 +386,11 @@ export class WeeklyScheduleView extends ItemView {
 
 		const actions = this.toolbarEl.createDiv({ cls: 'weekly-schedule-actions' });
 		this.addTextButton(actions, t('board.thisWeek'), () => void this.goToToday());
+		// What the previous week left unfinished is the first thing a new week
+		// needs, so it sits beside the week it lands in rather than behind a menu.
+		this.addIconButton(actions, 'arrow-down', t('command.carryOver'), () =>
+			void this.plugin.carryOverFromLastWeek(),
+		);
 		// Steps are fine for a week or two; this is the way to a distant one.
 		this.addIconButton(actions, YEAR_VIEW_ICON, t('board.yearOverview'), () =>
 			void this.plugin.activateYearView(),

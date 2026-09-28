@@ -116,6 +116,18 @@ export function t(key: TranslationKey, params?: TranslationParams): string {
 }
 
 /**
+ * The unfilled template of a key in a given language, `{name}` placeholders and
+ * all.
+ *
+ * For the rare string that is not simply handed to a reader: the carry-over mark
+ * is written into a week's file, so its two halves are needed to recognize it
+ * again, and the wording has to come from the same place as every other string.
+ */
+export function templateFor(key: TranslationKey, locale: Locale = getLocale()): string {
+	return template(key, locale);
+}
+
+/**
  * Translates a key with a count, choosing the singular form before the `|` and
  * the plural one after it. Languages without a plural distinction simply use one
  * string for both.

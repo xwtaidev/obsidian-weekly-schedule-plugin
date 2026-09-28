@@ -71,7 +71,7 @@ for (const entry of copied) {
 // The stylesheet must carry the current design's marker, so a stale copy is
 // obvious rather than a silent visual regression.
 const styles = readFileSync(join(target, 'styles.css'), 'utf8');
-const markers = ['--ws-heat-0', 'aspect-ratio'];
+const markers = ['--ws-heat-0', 'aspect-ratio', 'weekly-schedule-carry-tag-q1'];
 const missing = markers.filter((marker) => !styles.includes(marker));
 if (missing.length > 0) {
 	console.log(`\n  WARNING  styles.css is missing: ${missing.join(', ')}`);

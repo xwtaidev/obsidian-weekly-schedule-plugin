@@ -81,10 +81,28 @@ check(
 );
 check(
 	'counted strings carry both plural forms',
-	['migrate.result', 'migrate.pendingFiles', 'migrate.movedFiles', 'year.weeksDone', 'year.tasksTotal', 'board.stats.tasks'].filter(
-		(key) => !(en as Record<string, string>)[key]?.includes('|'),
-	),
+	[
+		'migrate.result',
+		'migrate.pendingFiles',
+		'migrate.movedFiles',
+		'year.weeksDone',
+		'year.tasksTotal',
+		'board.stats.tasks',
+		'carry.result',
+		'carry.resultSkipped',
+		'carry.allThere',
+		'carry.modalNote',
+		'carry.confirm',
+	].filter((key) => !(en as Record<string, string>)[key]?.includes('|')),
 	[],
+);
+// The carry-over mark is written into a week's file and recognized again from
+// this same wording, so the placeholder is what the pattern is built around: a
+// translation that dropped it would silently stop matching.
+check(
+	'the carry mark names the week it went to, in both languages',
+	[en['carry.mark'].includes('{week}'), zh['carry.mark'].includes('{week}')],
+	[true, true],
 );
 
 // --- which language the app reports ---------------------------------------
