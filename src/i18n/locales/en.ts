@@ -17,6 +17,7 @@ export const en = {
 	'command.previousWeek': 'Go to the previous week',
 	'command.nextWeek': 'Go to the next week',
 	'command.carryOver': 'Bring unfinished tasks from the previous week into this week',
+	'command.carryOverDay': "Bring yesterday's unfinished tasks into today",
 	'view.board': 'Weekly schedule',
 	'view.year': 'Weekly schedule: year',
 
@@ -126,6 +127,21 @@ export const en = {
 	'carry.confirm': 'Bring 1 task over|Bring {count} tasks over',
 	'carry.cancel': 'Cancel',
 	'carry.mark': ' (carried over to {week})',
+
+	// Bringing one day's unfinished work into the next. Unlike the week above,
+	// this moves the tasks: the day that is over keeps nothing, so nothing is
+	// marked there either. `{from}` and `{to}` are the two days, e.g. `9/27`.
+	'carry.dayCrossesWeek':
+		'Weekly schedule: yesterday belongs to the previous week, and this moves work only inside one week — nothing was moved.',
+	'carry.dayNone': 'Weekly schedule: yesterday left nothing unfinished.',
+	'carry.dayAllThere':
+		'Weekly schedule: the {count} task yesterday left is already in {to}.|Weekly schedule: all {count} tasks yesterday left are already in {to}.',
+	'carry.dayResult':
+		'Weekly schedule: moved {count} task from {from} into {to}.|Weekly schedule: moved {count} tasks from {from} into {to}.',
+	'carry.dayResultSkipped':
+		'Weekly schedule: moved {count} task from {from} into {to}, leaving {skipped} already there.|Weekly schedule: moved {count} tasks from {from} into {to}, leaving {skipped} already there.',
+	'carry.dayFailed':
+		'Weekly schedule: nothing was moved, as the day could not be written. See the developer console.',
 
 	'list.separator': ', ',
 };

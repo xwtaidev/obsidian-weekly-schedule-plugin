@@ -1,3 +1,4 @@
+import { DAY_IDS, QUADRANT_IDS } from './constants';
 import { SUPPORTED_LOCALES, templateFor } from './i18n';
 import { createTaskId } from './utils/helpers';
 import type { Locale } from './i18n';
@@ -18,6 +19,12 @@ import type { DayId, Quadrant, QuadrantId, Task, WeekSchedule } from './types';
  * - a mark is never part of a task's words. It is taken off before a task is
  *   compared or copied, so marks neither travel into the next week nor turn one
  *   task into two.
+ *
+ * The same work at day granularity — yesterday's leftovers into today — is the
+ * second half of the module, and it is deliberately the opposite in one respect:
+ * a day hands its unfinished work over rather than copying it, so the day that is
+ * over holds only what is still open on it. Nothing is marked, because nothing is
+ * left behind to mark.
  *
  * Kept free of Obsidian's API on purpose — no vault, no notice, no DOM — so
  * `npm run check:carry` can assert these rules directly.
@@ -241,4 +248,127 @@ export function markCarried(
 		}
 		task.text = markCarriedTo(task.text, week, locale);
 	}
+}
+
+/**
+ * The day before `day` inside one week's file, or null when the file has none.
+ *
+ * Monday is the first day a week file holds, so the day before it is the Sunday
+ * of the previous week — a different file, and a different week's problem. A
+ * day's work is handed over within the week it was planned in.
+ */
+export function previousDayId(day: DayId): DayId | null {
+	const index = DAY_IDS.indexOf(day);
+	return index > 0 ? (DAY_IDS[index - 1] ?? null) : null;
+}
+
+/** One task of a day that the next day takes over. */
+export interface DayCarryOverMove {
+	quadrant: QuadrantId;
+	/**
+	 * The task itself, so the move takes exactly this one out of its cell rather
+	 * than looking for it again by words that may have been edited meanwhile.
+	 */
+	task: Task;
+}
+
+export interface DayCarryOverPlan {
+	/** The day the work comes from, e.g. `sun`. */
+	from: DayId;
+	/** The day it goes to, e.g. `mon`. */
+	to: DayId;
+	/** Unfinished tasks to hand over, in the order the board draws them. */
+	moves: DayCarryOverMove[];
+	/** Unfinished tasks with no text at all, which no file could hold. */
+	blank: number;
+	/**
+	 * Tasks the target day's matching cell already holds. They stay where they
+	 * are: moving them would show one task twice, and the day that is over has
+	 * the better claim to a line it is going to be read for.
+	 */
+	alreadyThere: number;
+}
+
+/**
+ * Works out what one day hands over to the next.
+ *
+ * Each task keeps its quadrant, since the priority is the judgement the day was
+ * planned with, and a task the target cell already holds is left alone — its
+ * words compared with any carry mark taken off, so a line carried into this week
+ * last Monday is not moved a second time. A finished task is not moved either:
+ * it is done, and moving it would undo that.
+ */
+export function planDayCarryOver(
+	schedule: WeekSchedule,
+	from: DayId,
+	to: DayId,
+): DayCarryOverPlan {
+	const moves: DayCarryOverMove[] = [];
+	let blank = 0;
+	let alreadyThere = 0;
+
+	for (const quadrant of QUADRANT_IDS) {
+		const source = cellAt(schedule, from, quadrant);
+		const present = new Set((cellAt(schedule, to, quadrant)?.tasks ?? []).map(coreTextOf));
+		const seen = new Set<string>();
+
+		for (const task of source?.tasks ?? []) {
+			if (task.done) {
+				continue;
+			}
+
+			const text = coreTextOf(task);
+			if (text.length === 0) {
+				blank += 1;
+				continue;
+			}
+			// The same wording twice in one cell is one decision, not two.
+			if (seen.has(text)) {
+				continue;
+			}
+			seen.add(text);
+
+			if (present.has(text)) {
+				alreadyThere += 1;
+				continue;
+			}
+			moves.push({ quadrant, task });
+		}
+	}
+
+	return { from, to, moves, blank, alreadyThere };
+}
+
+/**
+ * Takes the planned tasks out of the day they were planned on and puts them at
+ * the end of their cells in the day that takes them over. Returns how many moved.
+ *
+ * They are removed from the day that is over, which is what makes this a move
+ * rather than a copy — the two days never both hold the same task. Their wording
+ * is left exactly as it was: nothing is being marked here, so a task's words are
+ * not ours to edit.
+ *
+ * Mutating in place matches how the views edit a board, so nothing has to be
+ * reconciled with the schedule the store has cached.
+ */
+export function applyDayCarryOver(schedule: WeekSchedule, plan: DayCarryOverPlan): number {
+	const moving = new Set(plan.moves.map((move) => move.task));
+	const source = schedule.days.find((day) => day.id === plan.from);
+	if (source) {
+		for (const quadrant of source.quadrants) {
+			quadrant.tasks = quadrant.tasks.filter((task) => !moving.has(task));
+		}
+	}
+
+	let moved = 0;
+	for (const move of plan.moves) {
+		const cell = cellAt(schedule, plan.to, move.quadrant);
+		if (!cell) {
+			continue;
+		}
+		cell.tasks.push(move.task);
+		moved += 1;
+	}
+
+	return moved;
 }

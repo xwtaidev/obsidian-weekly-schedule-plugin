@@ -93,6 +93,9 @@ check(
 		'carry.allThere',
 		'carry.modalNote',
 		'carry.confirm',
+		'carry.dayAllThere',
+		'carry.dayResult',
+		'carry.dayResultSkipped',
 	].filter((key) => !(en as Record<string, string>)[key]?.includes('|')),
 	[],
 );

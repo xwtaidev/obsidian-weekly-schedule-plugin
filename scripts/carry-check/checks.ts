@@ -15,16 +15,29 @@
  *   language;
  * - the week before a target is named and located the way the board names and
  *   locates weeks, including across an ISO year boundary;
+ * - the same work at day granularity is moved rather than copied — the day that
+ *   is over keeps nothing — and only within one week, since the day before a
+ *   Monday is the previous week's;
  * - the notices read correctly in both languages.
  *
  * Run with `npm run check:carry`. The Obsidian stand-in is shared with
  * `npm run check:i18n`.
  */
 import { moment, setStubLanguage } from '../i18n-check/obsidian-stub';
-import { applyCarryOver, markCarried, markCarriedTo, planCarryOver, readMarkedText } from '../../src/carry-over';
+import {
+	applyCarryOver,
+	applyDayCarryOver,
+	markCarried,
+	markCarriedTo,
+	planCarryOver,
+	planDayCarryOver,
+	previousDayId,
+	readMarkedText,
+} from '../../src/carry-over';
 import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import { formatShortDate } from '../../src/i18n/format';
 import { syncLocale, t, tp } from '../../src/i18n/index';
-import { dateKey, shiftWeek, weekFilePath, weekKey } from '../../src/utils/date';
+import { dateKey, dayIdOf, shiftWeek, weekFilePath, weekKey } from '../../src/utils/date';
 import type { DayId, QuadrantId, WeekSchedule } from '../../src/types';
 
 const SOURCE_PATH = 'weekly-schedule/2026/2026-W39.md';
@@ -273,6 +286,123 @@ check(
 	'weekly-schedule/2026/2026-W01.md',
 );
 
+// --- handing one day's unfinished work to the next --------------------------
+// A date names a day the board has a column for, and the day before it is either
+// in the same week's file or out of reach.
+check('a Monday is the day the board calls Monday', dayIdOf(moment([2026, 8, 28])), 'mon');
+check('a Sunday is the day the board calls Sunday', dayIdOf(moment([2026, 8, 27])), 'sun');
+check('the day before Monday is in another week', previousDayId('mon'), null);
+check('the day before Tuesday is Monday', previousDayId('tue'), 'mon');
+check('the day before Sunday is Saturday', previousDayId('sun'), 'sat');
+check(
+	'so a Sunday has a day to hand over to',
+	previousDayId(dayIdOf(moment([2026, 8, 27]))) !== null,
+	true,
+);
+check(
+	'while a Monday has none',
+	previousDayId(dayIdOf(moment([2026, 8, 28]))),
+	null,
+);
+check('the notice dates are written the way the board writes them', formatShortDate(moment([2026, 8, 27])), '9/27');
+
+const dayWeek = parseSchedule(
+	'# 2026-W40\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 回应监管问询\n- [x] 提交季度合规材料\n\n### 重要 · 不紧急\n- [ ] 整理架构决策记录\n\n## 周二\n\n### 重要 · 紧急\n- [ ] 修复客户端崩溃\n\n## 周三\n\n### 重要 · 紧急\n- [ ] 写周报\n',
+	TARGET_START,
+	TARGET_PATH,
+);
+add(dayWeek, 'mon', 'q1', '缓解线上告警');
+add(dayWeek, 'tue', 'q1', '缓解线上告警');
+add(dayWeek, 'mon', 'q2', 'One and the same');
+add(dayWeek, 'mon', 'q2', 'One and the same');
+add(dayWeek, 'mon', 'q4', '');
+
+const dayPlan = planDayCarryOver(dayWeek, 'mon', 'tue');
+check(
+	'only unfinished tasks are handed over',
+	dayPlan.moves.map((move) => move.task.text),
+	['回应监管问询', 'One and the same', '整理架构决策记录'],
+);
+check(
+	'and each keeps the quadrant it was planned in',
+	dayPlan.moves.map((move) => move.quadrant),
+	['q1', 'q2', 'q3'],
+);
+check(
+	'the same wording twice in one day is handed over once',
+	dayPlan.moves.filter((move) => move.task.text === 'One and the same').length,
+	1,
+);
+check('a wording the next day already holds is left where it is', dayPlan.alreadyThere, 1);
+check('a blank task is counted, not handed over', dayPlan.blank, 1);
+check('the plan names both days', [dayPlan.from, dayPlan.to], ['mon', 'tue']);
+
+const movedDays = applyDayCarryOver(dayWeek, dayPlan);
+check('everything planned is moved', movedDays, 3);
+
+check('the tasks now sit at the end of the next day, after what was there', tasks(dayWeek, 'tue', 'q1'), [
+	' :修复客户端崩溃',
+	' :缓解线上告警',
+	' :回应监管问询',
+]);
+check('and on their own quadrants', [
+	tasks(dayWeek, 'tue', 'q2'),
+	tasks(dayWeek, 'tue', 'q3'),
+], [[' :One and the same'], [' :整理架构决策记录']]);
+check(
+	'a moved task is unfinished, as it was',
+	tasks(dayWeek, 'tue', 'q1').every((row) => row.startsWith(' ')),
+	true,
+);
+check('they are gone from the day that handed them over', tasks(dayWeek, 'mon', 'q3'), []);
+check('a finished task is not moved', tasks(dayWeek, 'mon', 'q1'), [
+	'x:提交季度合规材料',
+	' :缓解线上告警',
+]);
+check('a blank task stays behind too', tasks(dayWeek, 'mon', 'q4'), [' :']);
+check('a day that is neither end of the move is untouched', tasks(dayWeek, 'wed', 'q1'), [' :写周报']);
+
+const dayFile = serializeSchedule(dayWeek);
+check('the words now appear once in the file', (dayFile.match(/回应监管问询/g) ?? []).length, 1);
+const dayReread = parseSchedule(dayFile, TARGET_START, TARGET_PATH);
+check('and the move survives the file round trip', tasks(dayReread, 'tue', 'q1'), [
+	' :修复客户端崩溃',
+	' :缓解线上告警',
+	' :回应监管问询',
+]);
+check('with the day it came from still holding its own work', tasks(dayReread, 'mon', 'q1'), [
+	'x:提交季度合规材料',
+	' :缓解线上告警',
+]);
+check('the day headings keep their language', dayFile.includes('## 周二'), true);
+
+const secondDayPlan = planDayCarryOver(dayWeek, 'mon', 'tue');
+check('a second run has nothing left to hand over', secondDayPlan.moves.length, 0);
+check(
+	'and all it can see left on the day are lines the next day holds',
+	secondDayPlan.alreadyThere,
+	2,
+);
+check('so a second run moves nothing', applyDayCarryOver(dayWeek, secondDayPlan), 0);
+check('and leaves the file byte for byte as it was', serializeSchedule(dayWeek), dayFile);
+
+// A mark is not part of a task's words here either: a line marked on Monday and
+// the same words unmarked on Tuesday are one task, and the copy is not moved.
+const markedDays = parseSchedule('', TARGET_START, TARGET_PATH);
+add(markedDays, 'mon', 'q1', '回应监管问询（已带入 2026-W40）');
+add(markedDays, 'tue', 'q1', '回应监管问询');
+const markedDayPlan = planDayCarryOver(markedDays, 'mon', 'tue');
+check('a mark does not hide that the next day has the task', markedDayPlan.alreadyThere, 1);
+check('so the marked line stays behind', markedDayPlan.moves.length, 0);
+
+// Moving is not marking: the words of a task that does move are left alone.
+const movedMark = parseSchedule('', TARGET_START, TARGET_PATH);
+add(movedMark, 'mon', 'q1', '回应监管问询（已带入 2026-W40）');
+applyDayCarryOver(movedMark, planDayCarryOver(movedMark, 'mon', 'tue'));
+check('a moved task keeps its own wording, mark and all', tasks(movedMark, 'tue', 'q1'), [
+	' :回应监管问询（已带入 2026-W40）',
+]);
+
 // --- what the dialog and the notices say -----------------------------------
 use('en');
 check(
@@ -304,6 +434,36 @@ check(
 	t('carry.none'),
 	'Weekly schedule: nothing from the previous week needs bringing over.',
 );
+check(
+	'en notice for a day move',
+	tp('carry.dayResult', 2, { from: '9/27', to: '9/28' }),
+	'Weekly schedule: moved 2 tasks from 9/27 into 9/28.',
+);
+check(
+	'en day notice, singular',
+	tp('carry.dayResult', 1, { from: '9/27', to: '9/28' }),
+	'Weekly schedule: moved 1 task from 9/27 into 9/28.',
+);
+check(
+	'en day notice with what stayed behind',
+	tp('carry.dayResultSkipped', 1, { from: '9/27', to: '9/28', skipped: 2 }),
+	'Weekly schedule: moved 1 task from 9/27 into 9/28, leaving 2 already there.',
+);
+check(
+	'en day notice when the next day has it all',
+	tp('carry.dayAllThere', 3, { to: '9/28' }),
+	'Weekly schedule: all 3 tasks yesterday left are already in 9/28.',
+);
+check(
+	'en day notice when there is nothing to move',
+	t('carry.dayNone'),
+	'Weekly schedule: yesterday left nothing unfinished.',
+);
+check(
+	'en day notice across the week boundary',
+	t('carry.dayCrossesWeek'),
+	'Weekly schedule: yesterday belongs to the previous week, and this moves work only inside one week — nothing was moved.',
+);
 
 use('zh');
 check('zh dialog title', t('carry.modalTitle', { from: SOURCE_WEEK, to: TARGET_WEEK }), '把 2026-W39 未完成的工作带入 2026-W40');
@@ -325,6 +485,27 @@ check(
 	'周计划：勾选的 2 项都已在 2026-W40 中，2026-W39 已标记。',
 );
 check('zh notice when there is nothing to bring over', t('carry.none'), '周计划：上周没有需要带入的未完成项。');
+check(
+	'zh notice for a day move',
+	tp('carry.dayResult', 2, { from: '9/27', to: '9/28' }),
+	'周计划：已把 9/27 的 2 项未完成移入 9/28。',
+);
+check(
+	'zh day notice with what stayed behind',
+	tp('carry.dayResultSkipped', 1, { from: '9/27', to: '9/28', skipped: 2 }),
+	'周计划：已把 9/27 的 1 项未完成移入 9/28，另有 2 项已在其中。',
+);
+check(
+	'zh day notice when the next day has it all',
+	tp('carry.dayAllThere', 3, { to: '9/28' }),
+	'周计划：昨天剩余的 3 项都已在 9/28 中。',
+);
+check('zh day notice when there is nothing to move', t('carry.dayNone'), '周计划：昨天没有未完成的项。');
+check(
+	'zh day notice across the week boundary',
+	t('carry.dayCrossesWeek'),
+	'周计划：昨天属于上一周，而这里只在同一周内移动，本次没有移动。',
+);
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

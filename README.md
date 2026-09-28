@@ -76,6 +76,28 @@ and confirming the same week twice changes nothing. A notice reports how many ta
 were brought over and how many were already there. The week carried into is the one
 on screen, so open the week you want to plan.
 
+## Starting from yesterday
+
+A week is planned week by week; a day is worked day by day. **Bring yesterday's
+unfinished tasks into today** does the same thing one day down — from the command
+palette, or from the arrow today's column shows while the pointer is over it. The
+move lands on one particular day, so its button belongs to that day's heading
+rather than to the week's toolbar.
+
+It does not ask. A single day's leftovers are a short list, and the move is the
+whole of the decision, so this one just does it. Each task keeps the priority cell
+it was planned in.
+
+It moves rather than copies, which is the one place it differs from the weekly
+move: yesterday keeps nothing, so a day that is over shows only what is still open
+on it. A wording today already holds is left where it is rather than doubled, and a
+notice reports how many moved and how many were already there.
+
+Both days live in one week's file, so this reaches only as far as the week the day
+is in: on a Monday, yesterday is the previous week's Sunday, and nothing happens
+but a notice saying so — use the weekly move for that. The week moved within is the
+one today falls in, whatever week the board is showing.
+
 ## How tasks are stored
 
 Standard Markdown checkboxes, one file per week, grouped in a folder per ISO year:
@@ -209,7 +231,10 @@ taken out of it, a mark is never part of a task's words — so it neither travel
 into the next week nor turns one task into two — a task the target cell already
 holds is not added again, and the week before a target is located the way the board
 locates weeks, including across the ISO year boundary, where the source week can
-live in the previous year's folder.
+live in the previous year's folder. The same checks cover the move from one day to
+the next: the tasks leave the day that hands them over rather than being copied,
+they keep their quadrant, a finished or blank task is not moved, and the day before
+a Monday is known to be out of reach.
 
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
@@ -223,7 +248,7 @@ src/
   store.ts                       # Reading/writing week files, caching, debounced saves
   markdown.ts                    # Markdown <-> board conversion
   migrate.ts                     # Moving week files into year folders
-  carry-over.ts                  # Carrying last week's unfinished work over
+  carry-over.ts                  # Carrying unfinished work over: last week's, and yesterday's
   constants.ts                   # View types, quadrants, days, defaults
   types.ts                       # Data model
   i18n/

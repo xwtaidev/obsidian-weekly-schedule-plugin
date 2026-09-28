@@ -22,6 +22,18 @@ import type { Day, Quadrant, Task, WeekSchedule } from '../types';
 export const VIEW_ICON = 'calendar-days';
 
 /**
+ * What the daily move's button draws.
+ *
+ * Two earlier tries missed. `arrow-down-to-line` said "download" — a downward
+ * arrow above a bar is what every download button looks like — and
+ * `arrow-right-from-line` kept its bar on the left, which still read as a glyph
+ * landing in a tray. This one hooks down out of the row above and runs on in
+ * the same stroke: the leftovers leaving the day before and arriving here, with
+ * no bar left to be mistaken for the edge of a container.
+ */
+const DAY_CARRY_ICON = 'corner-down-right';
+
+/**
  * Layout targets for the day grid.
  *
  * Three days per row is the intended shape and therefore the ceiling. A day
@@ -240,8 +252,8 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	/**
-	 * Moves the highlight to the day that just started. Called when the calendar
-	 * date rolls over while the board is open.
+	 * Moves the highlight — and the daily button with it — to the day that just
+	 * started. Called when the calendar date rolls over while the board is open.
 	 *
 	 * Nothing is reloaded and the board is not redrawn: a new date never changes
 	 * the week on screen, and replacing the DOM would throw away whatever a caret
@@ -253,10 +265,12 @@ export class WeeklyScheduleView extends ItemView {
 			return;
 		}
 
+		const today = moment();
 		const dates = this.datesOfWeek();
-		this.boardEl
-			.querySelectorAll<HTMLElement>('.weekly-schedule-day')
-			.forEach((column, index) => this.applyToday(column, dates[index] ?? null));
+		this.boardEl.querySelectorAll<HTMLElement>('.weekly-schedule-day').forEach((column, index) => {
+			const date = dates[index] ?? null;
+			this.applyToday(column, date !== null && isSameDay(date, today));
+		});
 	}
 
 	private get weekStartDay(): number {
@@ -391,6 +405,9 @@ export class WeeklyScheduleView extends ItemView {
 		this.addIconButton(actions, 'arrow-down', t('command.carryOver'), () =>
 			void this.plugin.carryOverFromLastWeek(),
 		);
+		// The daily half of the same idea lives on the day it lands on rather
+		// than here: see `renderDay`. It is a move onto one particular day, so
+		// it belongs to that day's column, not to the week's toolbar.
 		// Steps are fine for a week or two; this is the way to a distant one.
 		this.addIconButton(actions, YEAR_VIEW_ICON, t('board.yearOverview'), () =>
 			void this.plugin.activateYearView(),
@@ -410,14 +427,24 @@ export class WeeklyScheduleView extends ItemView {
 		this.addIconButton(actions, 'file-text', t('board.openNote'), () => void this.openFile());
 	}
 
+	/**
+	 * The class defaults to the toolbar's, since that is where most of these
+	 * live; a caller placing one elsewhere passes its own instead of overriding
+	 * sizes the toolbar's class sets.
+	 *
+	 * `aria-label` is what draws the hover hint — Obsidian tooltips an element
+	 * by that attribute alone, below the pointer by default — so the label is
+	 * not just there for a screen reader, and `setTooltip` would add nothing.
+	 */
 	private addIconButton(
 		parent: HTMLElement,
 		icon: string,
 		tooltip: string,
 		onClick: () => void,
+		cls = 'clickable-icon weekly-schedule-button',
 	): HTMLElement {
 		const button = parent.createEl('button', {
-			cls: 'clickable-icon weekly-schedule-button',
+			cls,
 			attr: { type: 'button', 'aria-label': tooltip },
 		});
 		setIcon(button, icon);
@@ -458,7 +485,7 @@ export class WeeklyScheduleView extends ItemView {
 		);
 		count.setText(open > 0 ? t('day.openCount', { count: open }) : '');
 
-		this.applyToday(column, date);
+		this.applyToday(column, date !== null && isSameDay(date, moment()));
 
 		const cells = column.createDiv({ cls: 'weekly-schedule-cells' });
 		for (const quadrant of day.quadrants) {
@@ -467,16 +494,51 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	/**
-	 * Marks a day column as today's, as one accent rule under its heading.
+	 * Marks a day column as today's — one accent rule under its heading — and
+	 * gives it the button that moves yesterday's unfinished tasks onto it.
+	 *
+	 * The mark and the button are decided in one place, and this is called both
+	 * when the board is drawn and when the date rolls over: a board left open
+	 * past midnight would otherwise keep the button on the day that has just
+	 * ended, next to a highlight that had already moved on.
 	 *
 	 * The styling hangs off the column, and the header carries the class too
-	 * because a theme may target either; both are written here so the render and
-	 * the day rollover cannot disagree about which day is today.
+	 * because a theme may target either. The button is worn by today's column
+	 * and no other — there is one today in a week, and it is where the work
+	 * lands — and it shows itself only under the pointer (styles.css). A column
+	 * that is not today is given no button rather than a hidden one, since a
+	 * hidden button is still a stop for the keyboard.
 	 */
-	private applyToday(column: HTMLElement, date: Moment | null): void {
-		const today = date !== null && isSameDay(date, moment());
+	private applyToday(column: HTMLElement, today: boolean): void {
 		column.toggleClass('is-today', today);
-		column.querySelector('.weekly-schedule-day-header')?.toggleClass('is-today', today);
+
+		const header = column.querySelector<HTMLElement>('.weekly-schedule-day-header');
+		header?.toggleClass('is-today', today);
+
+		const button = header?.querySelector('.weekly-schedule-day-carry');
+		if (!today) {
+			button?.remove();
+			return;
+		}
+		if (button || !header) {
+			return;
+		}
+
+		const carried = this.addIconButton(
+			header,
+			DAY_CARRY_ICON,
+			t('command.carryOverDay'),
+			() => void this.plugin.carryOverFromYesterday(),
+			'weekly-schedule-day-carry',
+		);
+		// Placed just before the day's remaining count, and the two travel to the
+		// right edge together: the button takes the free space rather than the
+		// count doing it alone (styles.css). Appending would leave it on the far
+		// side of the count, which is where the eye reads the count's own number.
+		const count = header.querySelector('.weekly-schedule-day-count');
+		if (count) {
+			header.insertBefore(carried, count);
+		}
 	}
 
 	/** Calendar dates of the displayed week, in column order. */

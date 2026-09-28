@@ -9,6 +9,7 @@ export const zh: Translations = {
 	'command.previousWeek': '上一周',
 	'command.nextWeek': '下一周',
 	'command.carryOver': '把上周未完成的带入本周',
+	'command.carryOverDay': '把昨天未完成的带入今天',
 	'view.board': '周计划',
 	'view.year': '周计划：年度',
 
@@ -90,6 +91,13 @@ export const zh: Translations = {
 	'carry.confirm': '带入 {count} 项',
 	'carry.cancel': '取消',
 	'carry.mark': '（已带入 {week}）',
+
+	'carry.dayCrossesWeek': '周计划：昨天属于上一周，而这里只在同一周内移动，本次没有移动。',
+	'carry.dayNone': '周计划：昨天没有未完成的项。',
+	'carry.dayAllThere': '周计划：昨天剩余的 {count} 项都已在 {to} 中。',
+	'carry.dayResult': '周计划：已把 {from} 的 {count} 项未完成移入 {to}。',
+	'carry.dayResultSkipped': '周计划：已把 {from} 的 {count} 项未完成移入 {to}，另有 {skipped} 项已在其中。',
+	'carry.dayFailed': '周计划：写入失败，本次没有移动。详见开发者控制台。',
 
 	'list.separator': '、',
 };

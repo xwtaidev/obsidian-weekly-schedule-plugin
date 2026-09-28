@@ -17,12 +17,20 @@ import {
 	notifyYearFolderResult,
 	planYearFolders,
 } from './migrate';
-import { applyCarryOver, markCarried, planCarryOver } from './carry-over';
+import {
+	applyCarryOver,
+	applyDayCarryOver,
+	markCarried,
+	planCarryOver,
+	planDayCarryOver,
+	previousDayId,
+} from './carry-over';
 import { ScheduleStore } from './store';
 import { CarryOverModal } from './ui/carry-over-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
-import { dateKey, shiftWeek, startOfWeek, weekFilePath, weekKey } from './utils/date';
+import { formatShortDate } from './i18n/format';
+import { dateKey, dayIdOf, shiftWeek, startOfWeek, weekFilePath, weekKey } from './utils/date';
 import { watchDayChange } from './utils/day-watch';
 import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
 import type { CarryOverItem } from './carry-over';
@@ -99,6 +107,10 @@ export default class WeeklySchedulePlugin extends Plugin {
 
 		this.addLocalizedCommand('carry-over-last-week', 'command.carryOver', () =>
 			void this.carryOverFromLastWeek(),
+		);
+
+		this.addLocalizedCommand('carry-over-yesterday', 'command.carryOverDay', () =>
+			void this.carryOverFromYesterday(),
 		);
 
 		this.settingTab = new WeeklyScheduleSettingTab(this.app, this);
@@ -392,6 +404,85 @@ export default class WeeklySchedulePlugin extends Plugin {
 			there > 0
 				? tp('carry.resultSkipped', added, { ...weeks, skipped: there })
 				: tp('carry.result', added, weeks),
+		);
+	}
+
+	/**
+	 * Brings yesterday's unfinished tasks into today, in one step.
+	 *
+	 * The daily counterpart of the weekly move, and deliberately unlike it: the
+	 * tasks are taken out of yesterday rather than copied, so a day that is over
+	 * holds only what is still open on it. There is nothing to confirm — a single
+	 * day's leftovers are already a short list — and nothing to mark, because
+	 * nothing is left behind.
+	 *
+	 * Both days live in the same week's file, and only there: on a Monday the day
+	 * before is the previous week's Sunday, which this does not reach. The week
+	 * to move within is the one today falls in, whatever the board is showing.
+	 *
+	 * Public because the board's toolbar offers it as a button.
+	 */
+	async carryOverFromYesterday(): Promise<void> {
+		const view = this.viewOf();
+
+		// Commit the board before rewriting its week: today's text lives in the
+		// DOM until the editor blurs, and the day is read from memory below.
+		await view?.commitPendingEdits();
+
+		const today = moment();
+		const to = dayIdOf(today);
+		const from = previousDayId(to);
+		if (from === null) {
+			// Monday. Yesterday is in another file, which is the weekly move's
+			// business rather than this one's.
+			new Notice(t('carry.dayCrossesWeek'));
+			return;
+		}
+
+		const weekStart = dateKey(startOfWeek(today, this.settings.weekStartsOn));
+		const path = this.pathForWeek(this.momentOf(weekStart));
+		const schedule = await this.store.load(weekStart, path);
+		const plan = planDayCarryOver(schedule, from, to);
+		const days = {
+			from: formatShortDate(today.clone().subtract(1, 'day')),
+			to: formatShortDate(today),
+		};
+
+		if (plan.moves.length === 0) {
+			// Both cases read as "nothing to move", but they differ in why: one
+			// day is empty, the other already holds everything.
+			new Notice(
+				plan.alreadyThere > 0
+					? tp('carry.dayAllThere', plan.alreadyThere, days)
+					: t('carry.dayNone'),
+			);
+			return;
+		}
+
+		const moved = applyDayCarryOver(schedule, plan);
+
+		if (!(await this.store.flush(path))) {
+			// The file could not be written. Take the move back rather than leave
+			// a board showing days no file holds.
+			this.store.forget(path);
+			if (view && view.activePath === path) {
+				await view.reloadWeek();
+			}
+			new Notice(t('carry.dayFailed'));
+			return;
+		}
+
+		// The board holds the schedule it drew, and this is one of the few cases
+		// where the plugin rewrote that very week itself. A board on another week
+		// has nothing to redraw, and its own week is not the one that changed.
+		if (view && view.activePath === path) {
+			await view.reloadWeek();
+		}
+
+		new Notice(
+			plan.alreadyThere > 0
+				? tp('carry.dayResultSkipped', moved, { ...days, skipped: plan.alreadyThere })
+				: tp('carry.dayResult', moved, days),
 		);
 	}
 

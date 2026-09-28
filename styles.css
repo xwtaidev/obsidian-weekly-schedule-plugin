@@ -173,10 +173,14 @@ it — so a new surface that colours a quadrant has to be added here.
 	min-width: 0;
 }
 
-/* The header rule is the only divider, so no card wrapper is needed. */
+/* The header rule is the only divider, so no card wrapper is needed. Centred
+   rather than baseline-aligned: a day heading now carries an icon button, and an
+   icon has no baseline to be aligned on — it would sit on its own, a pixel or
+   two off the count beside it. Centring every child of a one-line header costs
+   the text nothing visible and puts the icon on the same line as the numbers. */
 .weekly-schedule-day-header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	gap: 8px;
 	padding-bottom: 7px;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -201,9 +205,88 @@ it — so a new surface that colours a quadrant has to be added here.
 	color: var(--text-faint);
 }
 
-/* Today is one accent rule, not a filled column. */
+/* Today's column carries the button that moves yesterday's leftovers onto it,
+   to the left of the day's remaining count. It is laid out whether or not it is
+   visible — an opacity, not a `display` — so revealing it under the pointer
+   never shifts the date and the count beside it. Small enough not to make
+   today's heading taller than the other days', which would push its cells out
+   of line with the rest of the board.
+
+   The element is named in the selector on purpose: Obsidian styles buttons
+   through `button:not(.clickable-icon)`, which outweighs a bare class, and it
+   is that rule that gives this one a fill, a padding and an `--input-shadow`.
+   Those would come back the moment the button becomes visible, so the resets
+   have to be at least as specific as the rule they are undoing. */
+button.weekly-schedule-day-carry {
+	flex: 0 0 auto;
+	/* The free space goes to the button, so the button and the count after it
+	   sit together against the right edge. With no button — every other day —
+	   the count keeps its own `margin-left: auto` and goes there alone. */
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+	opacity: 0;
+	transition:
+		opacity 120ms ease,
+		color 120ms ease;
+}
+
+/* The button is followed by the count, so the two are one group and only one of
+   them takes the free space. */
+.weekly-schedule-day-carry + .weekly-schedule-day-count {
+	margin-left: 0;
+}
+
+.weekly-schedule-day-carry .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
+.weekly-schedule-day:hover .weekly-schedule-day-carry,
+button.weekly-schedule-day-carry:focus-visible {
+	opacity: 1;
+}
+
+/* A bare glyph, not a button surface: under the pointer only the glyph
+   changes colour. No fill, no shadow, no press state — the app's own
+   `button:hover` would otherwise paint a chip around a 13px icon. */
+button.weekly-schedule-day-carry:hover,
+button.weekly-schedule-day-carry:active {
+	color: var(--text-accent);
+	background-color: transparent;
+	box-shadow: none;
+}
+
+/* Keyboard focus still has to be visible, and an outline is the one ring that
+   costs no layout and no fill. */
+button.weekly-schedule-day-carry:focus-visible {
+	color: var(--text-accent);
+	background-color: transparent;
+	box-shadow: none;
+	outline: 2px solid var(--background-modifier-border-focus, var(--interactive-accent));
+	outline-offset: 1px;
+}
+
+/* Today is one accent rule, not a filled column — and a heavier one, since it
+   is the only divider on the board that says something rather than separating
+   something. The heavier line costs the heading no height: text-to-rule is 8px
+   either way (7px of padding plus a 1px rule elsewhere, 6px plus 2px here), so
+   today's cells stay level with every other day's. Widening the border alone
+   would have pushed them down by a pixel. */
 .weekly-schedule-day.is-today .weekly-schedule-day-header {
+	padding-bottom: 6px;
 	border-bottom-color: var(--interactive-accent);
+	border-bottom-width: 2px;
 }
 
 .weekly-schedule-day.is-today .weekly-schedule-day-name {

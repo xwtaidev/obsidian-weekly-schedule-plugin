@@ -67,3 +67,13 @@ export function formatWeekRange(start: Moment): string {
 	const end = start.clone().add(6, 'days');
 	return `${formatDate(start, NUMERIC_MONTH_DAY)}${RANGE_DASH}${formatDate(end, NUMERIC_MONTH_DAY)}`;
 }
+
+/**
+ * One day, written the way the language and the board write it: `9/27`, `27.9.`.
+ *
+ * The same compact form a day's heading carries, so a notice naming two days
+ * names them the way the reader just saw them.
+ */
+export function formatShortDate(date: Moment): string {
+	return formatDate(date, NUMERIC_MONTH_DAY);
+}

@@ -1,5 +1,7 @@
 import { moment } from 'obsidian';
+import { DAY_IDS } from '../constants';
 import { clamp, normalizeFolder } from './helpers';
+import type { DayId } from '../types';
 
 /**
  * Moment instance type, derived from Obsidian's own runtime export: the API
@@ -20,6 +22,19 @@ export function shiftWeek(date: Moment, weeks: number): Moment {
 
 export function dateKey(date: Moment): string {
 	return date.format(DATE_FORMAT);
+}
+
+/**
+ * The day a date falls on, named the way the board names its columns.
+ *
+ * Taken from the calendar date rather than from the week the board displays: a
+ * day is a day whatever week is on screen, and this is what lets a move between
+ * two days be decided without reading anything.
+ */
+export function dayIdOf(date: Moment): DayId {
+	// getDay(): Sunday is 0, so shift to make Monday the first day.
+	const index = (date.day() + 6) % 7;
+	return DAY_IDS[index] ?? 'mon';
 }
 
 export function isSameDay(a: Moment, b: Moment): boolean {
