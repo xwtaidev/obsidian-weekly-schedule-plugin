@@ -17,6 +17,14 @@ const QUADRANT_HEADING = /^###\s+(.+?)\s*$/;
 /** `- [ ] 写周报` / `* [x] 写周报` / `1. [ ] 写周报` */
 const TASK_LINE = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]\s?(.*)$/;
 
+/**
+ * What a line that continues a task is indented by: the width of the `- ` the
+ * task itself hangs off, so the line sits under the text it belongs to rather
+ * than under the box. No markup is involved — a continuation line is the plain
+ * text of the task, only indented.
+ */
+const CONTINUATION = '  ';
+
 /** A heading matched to its id, and the language it was written in. */
 interface HeadingMatch<Id> {
 	id: Id;
@@ -90,9 +98,33 @@ function createTask(text: string, done: boolean): Task {
 }
 
 /**
+ * A task's text as the file and the board both hold it: one line per line, with
+ * no line blank and none carrying space of its own.
+ *
+ * A task may run over several lines, and each but the first is written as an
+ * indented line under the checkbox. Two things cannot survive that trip and are
+ * dropped here rather than written out and lost on the next read: a blank line,
+ * which would end the task, and a line's own leading space, which would grow by
+ * an indent every time the week was saved. Trimming each line is what keeps a
+ * round trip through the file truthful.
+ */
+export function normalizeTaskText(text: string): string {
+	return text
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+		.join('\n');
+}
+
+/**
  * Parses a board file. Anything that is not a recognized day/quadrant heading
  * or a checkbox line (frontmatter, comments, prose) is ignored, and an
  * unrecognized `###` heading closes the current quadrant instead of guessing.
+ *
+ * An indented line under a task belongs to that task: it is how a task that runs
+ * over several lines is written back out (see `serializeSchedule`). A blank line
+ * or a line back at the margin ends the task above it, which leaves the meaning
+ * a hand-edited file has in Markdown itself.
  *
  * `fallbackLocale` is the language a file with no recognizable heading is taken
  * to be written in; the caller passes the interface language.
@@ -111,6 +143,8 @@ export function parseSchedule(
 
 	let currentDay: Day | null = null;
 	let currentQuadrant: QuadrantId | null = null;
+	/** Task the last checkbox line started, which an indented line continues. */
+	let currentTask: Task | null = null;
 	/** Language the file is written in, taken from the first heading that names one. */
 	let fileLocale: Locale | null = null;
 
@@ -122,6 +156,7 @@ export function parseSchedule(
 			const match = DAY_HEADINGS.get(label) ?? (isDayId(label) ? { id: label, locale: null } : null);
 			currentDay = match ? (byId.get(match.id) ?? null) : null;
 			currentQuadrant = null;
+			currentTask = null;
 			fileLocale ??= match?.locale ?? null;
 			continue;
 		}
@@ -131,6 +166,7 @@ export function parseSchedule(
 			const label = normalizeHeading(quadrantMatch[1] ?? '');
 			const known = QUADRANT_HEADINGS.get(label);
 			currentQuadrant = currentDay ? (known?.id ?? mappingFallback(label)) : null;
+			currentTask = null;
 			fileLocale ??= known?.locale ?? null;
 			continue;
 		}
@@ -142,8 +178,29 @@ export function parseSchedule(
 		const taskMatch = TASK_LINE.exec(rawLine);
 		if (taskMatch) {
 			const quadrant = currentDay.quadrants.find((item) => item.id === currentQuadrant);
-			quadrant?.tasks.push(createTask((taskMatch[2] ?? '').trim(), taskMatch[1] !== ' '));
+			const task = createTask((taskMatch[2] ?? '').trim(), taskMatch[1] !== ' ');
+			quadrant?.tasks.push(task);
+			currentTask = quadrant ? task : null;
+			continue;
 		}
+
+		// An indented line continues the task above it. A checkbox line is tested
+		// first, indented or not, so a hand-written nested list keeps reading as
+		// the tasks it looks like.
+		if (currentTask && /^\s/.test(rawLine)) {
+			const line = rawLine.trim();
+			if (line.length > 0) {
+				// A checkbox line with nothing after it carries no break of its
+				// own, so its first continuation line is simply its first line.
+				currentTask.text =
+					currentTask.text.length > 0 ? `${currentTask.text}\n${line}` : line;
+				continue;
+			}
+		}
+
+		// Anything else — a blank line, prose, a line back at the margin — ends
+		// the task above it rather than being read into it.
+		currentTask = null;
 	}
 
 	return { weekStart, path, days, locale: fileLocale ?? fallbackLocale };
@@ -190,6 +247,9 @@ function fromFlags(flags: {
 /**
  * Writes a board file, with the headings in the language the schedule was loaded
  * with, so saving an edit never translates a file the user already had.
+ *
+ * A task that runs over several lines is written as its first line, then each
+ * further line indented under it — the plain text of the task, no markup added.
  */
 export function serializeSchedule(schedule: WeekSchedule): string {
 	const lines: string[] = [`# ${schedule.path.split('/').pop()?.replace(/\.md$/, '') ?? ''}`];
@@ -204,11 +264,15 @@ export function serializeSchedule(schedule: WeekSchedule): string {
 		for (const quadrant of populated) {
 			lines.push('', `### ${quadrantHeading(quadrant.id, schedule.locale)}`);
 			for (const task of quadrant.tasks) {
-				const text = task.text.trim();
+				const text = normalizeTaskText(task.text);
 				if (text.length === 0) {
 					continue;
 				}
-				lines.push(`- [${task.done ? 'x' : ' '}] ${text}`);
+				const [head, ...rest] = text.split('\n');
+				lines.push(`- [${task.done ? 'x' : ' '}] ${head ?? ''}`);
+				for (const line of rest) {
+					lines.push(`${CONTINUATION}${line}`);
+				}
 			}
 		}
 	}

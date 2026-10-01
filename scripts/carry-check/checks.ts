@@ -11,6 +11,8 @@
  *   task into two;
  * - a task the target cell already holds is not offered, so running this twice
  *   changes nothing;
+ * - a line break inside a task does not make it two tasks: a task that runs over
+ *   several lines is offered, carried, moved and marked as the one task it is;
  * - a mark is written in the language the file is written in, not the interface
  *   language;
  * - the week before a target is named and located the way the board names and
@@ -401,6 +403,59 @@ add(movedMark, 'mon', 'q1', '回应监管问询（已带入 2026-W40）');
 applyDayCarryOver(movedMark, planDayCarryOver(movedMark, 'mon', 'tue'));
 check('a moved task keeps its own wording, mark and all', tasks(movedMark, 'tue', 'q1'), [
 	' :回应监管问询（已带入 2026-W40）',
+]);
+
+// --- a task that runs over several lines -----------------------------------
+// A line break inside a task does not make it two tasks: it is offered, carried,
+// moved and counted as the one task it is. The mark goes on the end of the task
+// — which is now the end of its last line.
+const multiSource = parseSchedule('', SOURCE_START, SOURCE_PATH);
+add(multiSource, 'mon', 'q1', '回应监管问询\n先补材料清单');
+const multiPlan = planCarryOver(multiSource, parseSchedule('', TARGET_START, TARGET_PATH));
+check('a multi-line task is offered as one task', multiPlan.items.map((item) => item.text), [
+	'回应监管问询\n先补材料清单',
+]);
+
+const multiTarget = parseSchedule('', TARGET_START, TARGET_PATH);
+check('and is carried whole', applyCarryOver(multiTarget, multiPlan.items), 1);
+check('landing on the day it was planned on, lines and all', tasks(multiTarget, 'mon', 'q1'), [
+	' :回应监管问询\n先补材料清单',
+]);
+
+markCarried(multiSource, multiPlan.items, TARGET_WEEK, 'en');
+check('the mark goes on the end of the task’s last line', tasks(multiSource, 'mon', 'q1'), [
+	' :回应监管问询\n先补材料清单 (carried over to 2026-W40)',
+]);
+check(
+	'and reading it back leaves the task’s own lines alone',
+	readMarkedText('回应监管问询\n先补材料清单 (carried over to 2026-W40)'),
+	{ text: '回应监管问询\n先补材料清单', carriedTo: TARGET_WEEK },
+);
+const multiFile = serializeSchedule(multiSource);
+check(
+	'so the file holds one task with an indented line',
+	multiFile.includes('- [ ] 回应监管问询\n  先补材料清单 (carried over to 2026-W40)\n'),
+	true,
+);
+check(
+	'and the mark is read off it again after the round trip',
+	tasks(parseSchedule(multiFile, SOURCE_START, SOURCE_PATH), 'mon', 'q1'),
+	[' :回应监管问询\n先补材料清单 (carried over to 2026-W40)'],
+);
+const multiAgain = planCarryOver(multiSource, multiTarget);
+check(
+	'a second run still reads it as the same task',
+	multiAgain.items.map((item) => item.alreadyThere),
+	[true],
+);
+check('so a second run adds nothing', applyCarryOver(multiTarget, multiAgain.items), 0);
+
+// The day move hands the task itself over, so its words are not ours to edit.
+const multiDays = parseSchedule('', TARGET_START, TARGET_PATH);
+add(multiDays, 'mon', 'q1', '回应监管问询\n先补材料清单');
+applyDayCarryOver(multiDays, planDayCarryOver(multiDays, 'mon', 'tue'));
+check('a multi-line task moves as one task, words untouched', tasks(multiDays, 'tue', 'q1'), [
+	' :回应监管问询\n先补材料清单',
 ]);
 
 // --- what the dialog and the notices say -----------------------------------

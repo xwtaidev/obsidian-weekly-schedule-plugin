@@ -6,12 +6,14 @@
  * - a new file follows the interface language;
  * - a file written in any supported language — or in the wording this plugin
  *   used before it was translated — still parses;
+ * - a task that runs over several lines is written as an indented line and read
+ *   back as one task, and what a task cannot hold is dropped rather than lost;
  * - dates, plurals and notices read correctly in both languages.
  *
  * Run with `npm run check:i18n`.
  */
 import { moment, setStubLanguage } from './obsidian-stub';
-import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import { normalizeTaskText, parseSchedule, serializeSchedule } from '../../src/markdown';
 import { formatWeekLabel, formatWeekRange } from '../../src/i18n/format';
 import { getLocale, quadrantParts, syncLocale, t, tp } from '../../src/i18n/index';
 import { en } from '../../src/i18n/locales/en';
@@ -183,6 +185,73 @@ check('legacy en file is read as en', legacyEnSchedule.locale, 'en');
 
 const idFile = parseSchedule('## tue\n\n### Important · not urgent\n- [ ] F\n', WEEK_START, PATH);
 check('a bare day id is accepted', tasks(idFile, 'tue', 'q3'), [' :F']);
+
+// --- a task that runs over several lines ----------------------------------
+// A task is usually one line, and a line break inside one is stored as an
+// indented line under the checkbox: the task's own text, with no markup added.
+const multiline = parseSchedule('', WEEK_START, PATH);
+fill(multiline, 'mon', 'q1', '先和后端对齐接口\n再补上灰度开关');
+const multilineText = serializeSchedule(multiline);
+check(
+	'a multi-line task is written as its first line, then the rest indented',
+	multilineText.includes('- [ ] 先和后端对齐接口\n  再补上灰度开关\n'),
+	true,
+);
+check(
+	'a multi-line task is read back as one task',
+	tasks(parseSchedule(multilineText, WEEK_START, PATH), 'mon', 'q1'),
+	[' :先和后端对齐接口\n再补上灰度开关'],
+);
+check(
+	'and writing it out again changes nothing',
+	serializeSchedule(parseSchedule(multilineText, WEEK_START, PATH)),
+	multilineText,
+);
+
+check('blank lines are not part of a task', normalizeTaskText('  第一行  \n\n  \n第二行\n  '), '第一行\n第二行');
+check('a line break typed on Windows is a line break', normalizeTaskText('a\r\nb'), 'a\nb');
+const messy = parseSchedule('', WEEK_START, PATH);
+fill(messy, 'mon', 'q1', '  第一行  \n\n第二行\n');
+check(
+	'and are dropped on the way to the file rather than written out to be lost',
+	serializeSchedule(messy).includes('- [ ] 第一行\n  第二行\n'),
+	true,
+);
+
+// What ends a task is what ends it in Markdown, so a hand-edited file means
+// what it looks like.
+const broken = parseSchedule(
+	'## mon\n\n### Important · urgent\n- [ ] A\n\n  这一段不再属于 A\n- [ ] B\n  属于 B\nplain prose\n- [ ] C\n',
+	WEEK_START,
+	PATH,
+);
+check('a blank line ends the task above it', tasks(broken, 'mon', 'q1'), [
+	' :A',
+	' :B\n属于 B',
+	' :C',
+]);
+check(
+	'an indented checkbox is still a task of its own',
+	tasks(
+		parseSchedule(
+			'## mon\n\n### Important · urgent\n- [ ] A\n  - [ ] B\n',
+			WEEK_START,
+			PATH,
+		),
+		'mon',
+		'q1',
+	),
+	[' :A', ' :B'],
+);
+check(
+	'a checkbox line with nothing after it takes its first line as its first',
+	tasks(
+		parseSchedule('## mon\n\n### Important · urgent\n- [ ]\n  第一行\n', WEEK_START, PATH),
+		'mon',
+		'q1',
+	),
+	[' :第一行'],
+);
 
 // --- a language switch while the board is open ----------------------------
 use('zh');

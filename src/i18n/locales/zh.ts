@@ -61,6 +61,11 @@ export const zh: Translations = {
 		'存放每周文件的仓库文件夹。插件每周写一个文件，并按年份分文件夹存放。例如：weekly-schedule/2026/2026-W12.md',
 	'settings.weekStart.name': '每周起始日',
 	'settings.weekStart.desc': '看板从一周的哪一天开始。文件名里的周数不受此影响。',
+	'settings.taskCommitKey.name': '待办事项里的回车键',
+	'settings.taskCommitKey.desc':
+		'写待办事项时回车键的作用。一条待办可以写成多行，用另一个回车换行；Ctrl / Cmd + 回车始终提交。',
+	'settings.taskCommitKey.enter': '回车提交，Shift + 回车换行',
+	'settings.taskCommitKey.shiftEnter': 'Shift + 回车提交，回车换行',
 	'settings.openBoard.name': '打开看板',
 	'settings.openBoard.desc': '在新标签页打开周看板；如果已经打开，则切换到它。',
 	'settings.openBoard.button': '打开看板',

@@ -29,14 +29,23 @@ export interface Day {
 }
 
 /**
- * A single checkbox line, serialized as `- [ ] text` / `- [x] text`.
- * `Text` is kept verbatim so anything a user types survives a round trip.
+ * One task, serialized as `- [ ] text` / `- [x] text` — or, when its text runs
+ * over several lines, as the checkbox line followed by the remaining lines
+ * indented under it.
+ *
+ * `text` holds those lines joined with `\n`, and is normalized on the way in and
+ * out (`normalizeTaskText`) rather than kept exactly as typed: a task cannot
+ * hold a blank line or a line's own leading space, and dropping them where the
+ * text is stored is what keeps the board and the file saying the same thing.
  */
 export interface Task {
 	id: string;
 	text: string;
 	done: boolean;
 }
+
+/** Which keystroke saves a task's text rather than starting a new line in it. */
+export type TaskCommitKey = 'enter' | 'shiftEnter';
 
 export interface WeekSchedule {
 	/** Monday of the week, formatted `YYYY-MM-DD`. */

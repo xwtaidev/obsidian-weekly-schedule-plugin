@@ -3,6 +3,8 @@ import { DEFAULT_FOLDER, WEEK_START_OPTIONS } from './constants';
 import { dayLabel, t } from './i18n';
 import { normalizeFolder } from './utils/helpers';
 import type { App } from 'obsidian';
+import type { TranslationKey } from './i18n';
+import type { TaskCommitKey } from './types';
 import type WeeklySchedulePlugin from './main';
 
 export interface WeeklyScheduleSettings {
@@ -10,12 +12,34 @@ export interface WeeklyScheduleSettings {
 	folder: string;
 	/** First day of the week: 1 = Monday, 0 = Sunday. */
 	weekStartsOn: number;
+	/**
+	 * Which Enter commits a task's text. A task may run over several lines, so
+	 * the other Enter has to be free to start one.
+	 */
+	taskCommitKey: TaskCommitKey;
 }
 
 export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
 	folder: DEFAULT_FOLDER,
 	weekStartsOn: 1,
+	taskCommitKey: 'enter',
 };
+
+/**
+ * The two Enter keystrokes, in the order the dropdown offers them, each with the
+ * dictionary key that words it. The default comes first.
+ */
+export const TASK_COMMIT_KEY_OPTIONS: readonly {
+	value: TaskCommitKey;
+	labelKey: TranslationKey;
+}[] = [
+	{ value: 'enter', labelKey: 'settings.taskCommitKey.enter' },
+	{ value: 'shiftEnter', labelKey: 'settings.taskCommitKey.shiftEnter' },
+];
+
+export function isTaskCommitKey(value: string): value is TaskCommitKey {
+	return TASK_COMMIT_KEY_OPTIONS.some((option) => option.value === value);
+}
 
 /**
  * Settings tab.
@@ -23,8 +47,8 @@ export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
  * Built with the imperative `Setting` API rather than the declarative one added
  * in Obsidian 1.13. The declarative API would put these options into Obsidian's
  * settings search, which is a real nicety, but it lifts minAppVersion to 1.13.0
- * and so shuts out everyone on an older release. Two settings and three buttons
- * do not justify that.
+ * and so shuts out everyone on an older release. Three settings and three
+ * buttons do not justify that.
  */
 // The declarative settings API would add these options to Obsidian's settings
 // search, but it requires Obsidian 1.13 and would raise minAppVersion with it.
@@ -87,6 +111,24 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 						return;
 					}
 					this.plugin.settings.weekStartsOn = weekStartsOn;
+					await this.plugin.saveSettings();
+					await this.plugin.handleSettingsChange();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName(t('settings.taskCommitKey.name'))
+			.setDesc(t('settings.taskCommitKey.desc'))
+			.addDropdown((dropdown) => {
+				for (const option of TASK_COMMIT_KEY_OPTIONS) {
+					dropdown.addOption(option.value, t(option.labelKey));
+				}
+				dropdown.setValue(this.plugin.settings.taskCommitKey);
+				dropdown.onChange(async (value) => {
+					if (!isTaskCommitKey(value) || value === this.plugin.settings.taskCommitKey) {
+						return;
+					}
+					this.plugin.settings.taskCommitKey = value;
 					await this.plugin.saveSettings();
 					await this.plugin.handleSettingsChange();
 				});

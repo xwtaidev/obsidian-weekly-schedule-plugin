@@ -424,6 +424,10 @@ button.weekly-schedule-day-carry:focus-visible {
 	min-width: 0;
 	font-size: 13px;
 	line-height: 1.5;
+	/* A task may run over several lines, and the break between them is a newline
+	   character in the text — which only shows if the whitespace is kept.
+	   Wrapping is unaffected: `overflow-wrap` still breaks a long word. */
+	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	cursor: text;
 	outline: none;
@@ -949,6 +953,9 @@ button.weekly-schedule-day-carry:focus-visible {
 .weekly-schedule-carry-text {
 	flex: 1 1 auto;
 	min-width: 0;
+	/* Listed the way the board draws it, line breaks and all: a dialog row that
+	   ran a multi-line task together would read as a different task. */
+	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 }
 

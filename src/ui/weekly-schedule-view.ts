@@ -2,6 +2,7 @@ import { ItemView, Menu, moment, setIcon } from 'obsidian';
 import { QUADRANTS, VIEW_TYPE_WEEKLY_SCHEDULE } from '../constants';
 import { formatWeekLabel } from '../i18n/format';
 import { dayLabel, quadrantParts, syncLocale, t, tp } from '../i18n';
+import { normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
 import {
 	dateKey,
@@ -602,9 +603,15 @@ export class WeeklyScheduleView extends ItemView {
 		});
 		text.dataset.taskId = task.id;
 		text.setText(task.text);
-		registerInlineEditor(text, (value) => {
-			this.setTaskText(quadrant, task.id, value);
-		});
+		// Read per row rather than captured once: changing the setting re-renders
+		// the board, and every row has to be drawn with the new keystroke.
+		registerInlineEditor(
+			text,
+			(value) => {
+				this.setTaskText(quadrant, task.id, value);
+			},
+			{ commitKey: this.plugin.settings.taskCommitKey },
+		);
 
 		const controls = row.createDiv({ cls: 'weekly-schedule-task-controls' });
 		// "↑ ↓" in the row matches the button hint: reorder, do not delete.
@@ -677,7 +684,15 @@ export class WeeklyScheduleView extends ItemView {
 		await this.focusTask(task.id);
 	}
 
-	private setTaskText(quadrant: Quadrant, taskId: string, text: string): void {
+	/**
+	 * Stores what a task's editor holds.
+	 *
+	 * The text is normalized on the way in — lines trimmed, blank lines dropped —
+	 * because that is what the file can hold: keeping the model to the same shape
+	 * as the file means the board never shows a line the week would not save.
+	 */
+	private setTaskText(quadrant: Quadrant, taskId: string, value: string): void {
+		const text = normalizeTaskText(value);
 		const task = quadrant.tasks.find((item) => item.id === taskId);
 		if (!task || task.text === text) {
 			return;
@@ -787,17 +802,22 @@ export class WeeklyScheduleView extends ItemView {
 	 * Copies the focused editor's current value into the board. Text typed into
 	 * a `contenteditable` lives in the DOM until blur, which would otherwise let
 	 * a re-render (for example after an external edit) discard it.
+	 *
+	 * The value is normalized exactly as a commit would normalize it, so a
+	 * re-render while the caret is still in the row cannot bring back a shape the
+	 * model had already dropped.
 	 */
 	private syncFocusedEditor(): void {
 		const editor = this.focusedEditor();
 		if (!editor || !this.schedule) {
 			return;
 		}
+		const text = normalizeTaskText(editor.text);
 		for (const day of this.schedule.days) {
 			for (const quadrant of day.quadrants) {
 				const task = quadrant.tasks.find((item) => item.id === editor.taskId);
-				if (task && task.text !== editor.text) {
-					task.text = editor.text;
+				if (task && task.text !== text) {
+					task.text = text;
 					this.save();
 					return;
 				}
