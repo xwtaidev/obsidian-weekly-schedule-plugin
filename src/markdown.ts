@@ -117,6 +117,19 @@ export function normalizeTaskText(text: string): string {
 }
 
 /**
+ * Whether a task holds anything yet.
+ *
+ * A task with no text is a row being typed into rather than a piece of work: it
+ * is never written to the file, and it is not one of the week's tasks either, so
+ * the counts leave it out. Otherwise the totals would climb by one the moment
+ * Enter opened the next task, and a cell would write a heading with nothing
+ * under it.
+ */
+export function hasTaskText(task: Task): boolean {
+	return normalizeTaskText(task.text).length > 0;
+}
+
+/**
  * Parses a board file. Anything that is not a recognized day/quadrant heading
  * or a checkbox line (frontmatter, comments, prose) is ignored, and an
  * unrecognized `###` heading closes the current quadrant instead of guessing.
@@ -255,7 +268,9 @@ export function serializeSchedule(schedule: WeekSchedule): string {
 	const lines: string[] = [`# ${schedule.path.split('/').pop()?.replace(/\.md$/, '') ?? ''}`];
 
 	for (const day of schedule.days) {
-		const populated = day.quadrants.filter((quadrant) => quadrant.tasks.length > 0);
+		// A cell earns its heading by holding a task, and a row with nothing in it
+		// is not one — a heading with no task under it would be noise in the file.
+		const populated = day.quadrants.filter((quadrant) => quadrant.tasks.some(hasTaskText));
 		if (populated.length === 0) {
 			continue;
 		}
@@ -264,10 +279,10 @@ export function serializeSchedule(schedule: WeekSchedule): string {
 		for (const quadrant of populated) {
 			lines.push('', `### ${quadrantHeading(quadrant.id, schedule.locale)}`);
 			for (const task of quadrant.tasks) {
-				const text = normalizeTaskText(task.text);
-				if (text.length === 0) {
+				if (!hasTaskText(task)) {
 					continue;
 				}
+				const text = normalizeTaskText(task.text);
 				const [head, ...rest] = text.split('\n');
 				lines.push(`- [${task.done ? 'x' : ' '}] ${head ?? ''}`);
 				for (const line of rest) {

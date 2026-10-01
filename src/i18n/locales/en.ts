@@ -79,9 +79,9 @@ export const en = {
 		'Which day the board starts with. Week numbers in file names are unaffected by this.',
 	'settings.taskCommitKey.name': 'Enter key in a task',
 	'settings.taskCommitKey.desc':
-		'What Enter does while writing a task, which may run over several lines. The other Enter starts a new line, and Cmd/Ctrl+Enter always commits.',
-	'settings.taskCommitKey.enter': 'Enter commits, Shift+Enter starts a line',
-	'settings.taskCommitKey.shiftEnter': 'Shift+Enter commits, Enter starts a line',
+		'What Enter does while writing a task, which may run over several lines. Committing also opens the next task underneath; the other Enter starts a new line, and Cmd/Ctrl+Enter commits and stops.',
+	'settings.taskCommitKey.enter': 'Enter commits and opens the next task',
+	'settings.taskCommitKey.shiftEnter': 'Shift+Enter commits and opens the next task',
 	'settings.openBoard.name': 'Open board',
 	'settings.openBoard.desc':
 		'Open the weekly board in a tab, or focus it when it is already open.',

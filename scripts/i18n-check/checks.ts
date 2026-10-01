@@ -8,12 +8,14 @@
  *   used before it was translated — still parses;
  * - a task that runs over several lines is written as an indented line and read
  *   back as one task, and what a task cannot hold is dropped rather than lost;
+ * - a task with nothing in it is not one: it is not written, it earns its cell no
+ *   heading, and the week's totals do not count it;
  * - dates, plurals and notices read correctly in both languages.
  *
  * Run with `npm run check:i18n`.
  */
 import { moment, setStubLanguage } from './obsidian-stub';
-import { normalizeTaskText, parseSchedule, serializeSchedule } from '../../src/markdown';
+import { hasTaskText, normalizeTaskText, parseSchedule, serializeSchedule } from '../../src/markdown';
 import { formatWeekLabel, formatWeekRange } from '../../src/i18n/format';
 import { getLocale, quadrantParts, syncLocale, t, tp } from '../../src/i18n/index';
 import { en } from '../../src/i18n/locales/en';
@@ -252,6 +254,22 @@ check(
 	),
 	[' :第一行'],
 );
+
+// --- a task with nothing in it --------------------------------------------
+// A row waiting for its first keystroke is not work: it is never written, it
+// earns its cell no heading, and the board's totals count the week's tasks
+// rather than its rows.
+const waiting = parseSchedule('', WEEK_START, PATH);
+fill(waiting, 'mon', 'q1', '先说点什么');
+cell(waiting, 'mon', 'q1')?.tasks.push({ id: 'empty', text: '', done: false });
+cell(waiting, 'mon', 'q3')?.tasks.push({ id: 'blank', text: '   \n ', done: false });
+check('an empty task is not a task', hasTaskText({ id: 'a', text: '', done: false }), false);
+check('nor is one holding only space', hasTaskText({ id: 'a', text: '  \n ', done: false }), false);
+check('a task with text is', hasTaskText({ id: 'a', text: '写周报', done: false }), true);
+
+const waitingText = serializeSchedule(waiting);
+check('only the task holding something is written', (waitingText.match(/^- \[/gm) ?? []).length, 1);
+check('and a cell holding only a row like that earns no heading', (waitingText.match(/^### /gm) ?? []).length, 1);
 
 // --- a language switch while the board is open ----------------------------
 use('zh');

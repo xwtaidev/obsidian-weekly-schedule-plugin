@@ -2,7 +2,7 @@ import { ItemView, Menu, moment, setIcon } from 'obsidian';
 import { QUADRANTS, VIEW_TYPE_WEEKLY_SCHEDULE } from '../constants';
 import { formatWeekLabel } from '../i18n/format';
 import { dayLabel, quadrantParts, syncLocale, t, tp } from '../i18n';
-import { normalizeTaskText } from '../markdown';
+import { hasTaskText, normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
 import {
 	dateKey,
@@ -478,10 +478,13 @@ export class WeeklyScheduleView extends ItemView {
 			dateEl.setText(date.format('M/D'));
 		}
 
-		// Remaining work for the day, so a full week is scannable at a glance.
+		// Remaining work for the day, so a full week is scannable at a glance. A
+		// task the board has only just opened counts once it holds something: a
+		// row waiting for its first keystroke is not work left over.
 		const count = header.createSpan({ cls: 'weekly-schedule-day-count' });
 		const open = day.quadrants.reduce(
-			(total, quadrant) => total + quadrant.tasks.filter((task) => !task.done).length,
+			(total, quadrant) =>
+				total + quadrant.tasks.filter((task) => !task.done && hasTaskText(task)).length,
 			0,
 		);
 		count.setText(open > 0 ? t('day.openCount', { count: open }) : '');
@@ -490,7 +493,7 @@ export class WeeklyScheduleView extends ItemView {
 
 		const cells = column.createDiv({ cls: 'weekly-schedule-cells' });
 		for (const quadrant of day.quadrants) {
-			this.renderQuadrant(cells, day, quadrant);
+			this.renderQuadrant(cells, quadrant);
 		}
 	}
 
@@ -547,7 +550,7 @@ export class WeeklyScheduleView extends ItemView {
 		return weekDays(this.momentOf(this.weekStart), this.weekStartDay);
 	}
 
-	private renderQuadrant(parent: HTMLElement, day: Day, quadrant: Quadrant): void {
+	private renderQuadrant(parent: HTMLElement, quadrant: Quadrant): void {
 		const definition = QUADRANTS.find((item) => item.id === quadrant.id);
 		const cell = parent.createDiv({
 			cls: `weekly-schedule-cell weekly-schedule-cell-${quadrant.id}`,
@@ -565,20 +568,27 @@ export class WeeklyScheduleView extends ItemView {
 		// An empty cell stays empty: the add row below already says the cell can
 		// take a task, and repeating a placeholder in all 28 cells is noise.
 		const list = cell.createDiv({ cls: 'weekly-schedule-list' });
-		for (const task of quadrant.tasks) {
-			if (!this.showCompleted && task.done) {
-				continue;
-			}
+		// What a cell can show is not what it holds: completed tasks are hidden
+		// while the eye is off, and a cell whose tasks are all hidden has to keep
+		// offering the way in.
+		const shown = quadrant.tasks.filter((task) => this.showCompleted || !task.done);
+		for (const task of shown) {
 			this.renderTask(list, quadrant, task);
 		}
 
-		const add = cell.createEl('button', {
-			cls: 'weekly-schedule-add',
-			attr: { type: 'button' },
-		});
-		add.createSpan({ cls: 'weekly-schedule-add-icon', text: '+' });
-		add.createSpan({ cls: 'weekly-schedule-add-label', text: t('board.addTask') });
-		add.addEventListener('click', () => void this.addTask(day, quadrant));
+		// The add row belongs to a cell that cannot show a task. One that can
+		// gives it up for good: the way to the next task is Enter, at the end of
+		// the task being written, and that costs no line — the button would cost
+		// one in every cell of the week, every week, to say what a keystroke can.
+		if (shown.length === 0) {
+			const add = cell.createEl('button', {
+				cls: 'weekly-schedule-add',
+				attr: { type: 'button' },
+			});
+			add.createSpan({ cls: 'weekly-schedule-add-icon', text: '+' });
+			add.createSpan({ cls: 'weekly-schedule-add-label', text: t('board.addTask') });
+			add.addEventListener('click', () => void this.addTask(quadrant));
+		}
 	}
 
 	private renderTask(parent: HTMLElement, quadrant: Quadrant, task: Task): void {
@@ -610,7 +620,10 @@ export class WeeklyScheduleView extends ItemView {
 			(value) => {
 				this.setTaskText(quadrant, task.id, value);
 			},
-			{ commitKey: this.plugin.settings.taskCommitKey },
+			{
+				commitKey: this.plugin.settings.taskCommitKey,
+				onCommit: (next) => this.finishTask(quadrant, task.id, next),
+			},
 		);
 
 		const controls = row.createDiv({ cls: 'weekly-schedule-task-controls' });
@@ -667,19 +680,53 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	/**
-	 * Appends a task and moves the cursor into it. The task starts empty and is
-	 * therefore not written to disk until it has text, so an accidental click
-	 * leaves no trace in the file.
+	 * Gives a cell its first task and moves the cursor into it. This is the only
+	 * thing the add row does, since a cell that already shows a task does not
+	 * have one: there, the way to the next task is Enter at the end of the one
+	 * being written.
 	 */
-	private async addTask(day: Day, quadrant: Quadrant): Promise<void> {
+	private async addTask(quadrant: Quadrant): Promise<void> {
 		// An empty task is invisible while completed tasks are hidden, which
 		// would make the click look like it did nothing.
 		if (!this.showCompleted) {
 			this.showCompleted = true;
 		}
 
+		await this.insertTask(quadrant, quadrant.tasks.length);
+	}
+
+	/**
+	 * What a finished edit leaves behind.
+	 *
+	 * A task with text stays where it is. An empty one goes: it is never written
+	 * to the file, so a keystroke that ended the edit would otherwise leave a row
+	 * on the board that the week does not hold. And the keystroke that asked for
+	 * another task gets one directly below — at the caret rather than at the foot
+	 * of the cell, so a list grows out of the task being written.
+	 */
+	private finishTask(quadrant: Quadrant, taskId: string, next: boolean): void {
+		const index = quadrant.tasks.findIndex((task) => task.id === taskId);
+		const task = quadrant.tasks[index];
+		if (!task) {
+			return;
+		}
+
+		// The same question the counts and the file ask, so it is asked the same
+		// way: a task holding nothing but a break is a row, not work.
+		if (!hasTaskText(task)) {
+			quadrant.tasks.splice(index, 1);
+			this.renderBoard(this.requireSchedule());
+			return;
+		}
+		if (next) {
+			void this.insertTask(quadrant, index + 1);
+		}
+	}
+
+	/** Draws a new empty task at `index` and puts the caret in it. */
+	private async insertTask(quadrant: Quadrant, index: number): Promise<void> {
 		const task: Task = { id: createTaskId(), text: '', done: false };
-		quadrant.tasks.push(task);
+		quadrant.tasks.splice(index, 0, task);
 		this.renderBoard(this.requireSchedule());
 		await this.focusTask(task.id);
 	}

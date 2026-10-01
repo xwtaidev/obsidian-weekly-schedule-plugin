@@ -6,14 +6,17 @@ four priority quadrants, and a whole year you can scan at a glance.
 ![The weekly board: seven days across three rows, each with four priority quadrants](assets/board-dark.png)
 
 Each day holds four cells — important and urgent, not important but urgent,
-important but not urgent, and neither. Every cell has an **Add a task**
-(**添加一个待办事项** in Chinese) button that appends a task and puts the cursor in
-it. Press `Enter` to commit, `Esc` to discard; a task left empty is never written
-to the file.
+important but not urgent, and neither. An empty cell offers an **Add a task**
+(**添加一个待办事项** in Chinese) button that gives it its first task and puts the
+cursor in it. Once the cell shows a task the button is gone: the way to the next
+one is `Enter` at the end of the one you are writing, and the new task appears
+underneath it. `Esc` discards the edit, and a task left empty is never written to
+the file.
 
 A task may run over several lines, so `Shift+Enter` starts one instead. Which of
-the two keystrokes commits is yours to choose in **Settings → Weekly schedule** —
-`Cmd`/`Ctrl`+`Enter` always commits, whichever way round it is set.
+the two keystrokes commits is yours to choose in **Settings → Weekly schedule**.
+Committing opens the next task, and `Cmd`/`Ctrl`+`Enter` commits and stops there
+— whichever way round the setting is set.
 
 Below the board, a status strip keeps the week's own totals in sight — **12 tasks
 this week · 5 done · 42% complete** — counted from the board as you edit it, and
@@ -139,9 +142,9 @@ wins over the file rather than being discarded.
 
 A task that runs over several lines is the checkbox line followed by the rest,
 indented two spaces — its own plain text, with no markup added. A blank line ends
-a task, in the file and in the board alike, so a task cannot hold one: pressing
-`Enter` twice inside a task leaves a single break, not an empty line the file
-would drop on the next read.
+a task, in the file and in the board alike, so a task cannot hold one: the
+keystroke that starts a line, pressed twice, leaves a single break, not an empty
+line the file would drop on the next read.
 
 The folder is the week's **ISO** year, not its calendar year, so the week of
 2025-12-29 — week 1 of 2026 — lives in `2026/`, matching how the year overview

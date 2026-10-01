@@ -1,7 +1,7 @@
 import { TFile, TFolder } from 'obsidian';
 import { SAVE_DEBOUNCE_MS } from './constants';
 import { folderOf, parseWeekFileStem } from './utils/date';
-import { parseSchedule, serializeSchedule } from './markdown';
+import { hasTaskText, parseSchedule, serializeSchedule } from './markdown';
 import { debounce } from './utils/helpers';
 import type { Vault } from 'obsidian';
 import type { WeekSchedule } from './types';
@@ -50,6 +50,11 @@ export function countTasks(schedule: WeekSchedule): WeekStats {
 	for (const day of schedule.days) {
 		for (const quadrant of day.quadrants) {
 			for (const task of quadrant.tasks) {
+				// A row being typed into is not work: the totals are counted from
+				// what the week would hold, and an empty task is never written.
+				if (!hasTaskText(task)) {
+					continue;
+				}
 				total += 1;
 				if (task.done) {
 					done += 1;

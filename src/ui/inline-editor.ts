@@ -13,6 +13,15 @@ export function sleep(ms: number): Promise<void> {
 export interface InlineEditorOptions {
 	/** The keystroke that commits; the other Enter starts a new line. */
 	commitKey: TaskCommitKey;
+	/**
+	 * Called when a keystroke ended the edit, after the value has been handed to
+	 * `onChange`. `next` is true only for the commit keystroke, which asks for
+	 * another task to follow; Escape and Cmd/Ctrl end the edit where it is.
+	 *
+	 * A caret that leaves the field for something else calls `onChange` and
+	 * nothing here: wandering off is not a decision about what comes next.
+	 */
+	onCommit?: (next: boolean) => void;
 }
 
 /**
@@ -24,6 +33,11 @@ export interface InlineEditorOptions {
  * them quick to fill in; a task may also run over several lines, so the other
  * Enter — Shift+Enter, unless the user has swapped them — starts one. Cmd/Ctrl
  * commits in either case, which keeps a commit from ever being out of reach.
+ *
+ * Committing is also how the caller learns the edit is over, and which of the
+ * two ways out it took: the commit keystroke carries on to the next task, while
+ * Escape and Cmd/Ctrl stop here. The field itself has no opinion about what
+ * follows it — it only says which keystroke was pressed.
  */
 export function registerInlineEditor(
 	element: HTMLElement,
@@ -55,6 +69,10 @@ export function registerInlineEditor(
 			if (commits) {
 				commit();
 				element.blur();
+				// Cmd/Ctrl is the way out that does not depend on the setting, so
+				// it is the one that ends the run rather than carrying it on —
+				// which is what makes it usable whichever way the setting is set.
+				options.onCommit?.(!modifier);
 				return;
 			}
 			// The break is inserted as a newline character rather than left to the
@@ -68,6 +86,9 @@ export function registerInlineEditor(
 			element.setText(lastValue);
 			commit();
 			element.blur();
+			// Escape ends the edit too, and the text it put back is what decides
+			// what is left behind: nothing, if the field was empty to begin with.
+			options.onCommit?.(false);
 		}
 	});
 

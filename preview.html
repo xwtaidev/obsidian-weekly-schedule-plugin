@@ -213,13 +213,18 @@ DAYS.forEach((day, index) => {
 		}
 		cell.append(list);
 
-		const add = document.createElement('button');
-		add.className = 'weekly-schedule-add';
-		add.innerHTML = `
+		// Only a cell that cannot show a task offers the add row: a cell with a
+		// task on screen gives it up, and the way to the next task is Enter at the
+		// end of the one being written.
+		if (tasks.length === 0) {
+			const add = document.createElement('button');
+			add.className = 'weekly-schedule-add';
+			add.innerHTML = `
 			<span class="weekly-schedule-add-icon">+</span>
 			<span class="weekly-schedule-add-label">添加一个待办事项</span>
 `;
-		cell.append(add);
+			cell.append(add);
+		}
 
 		cells.append(cell);
 	}
