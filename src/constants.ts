@@ -1,4 +1,12 @@
-import type { Day, DayId, Quadrant, QuadrantDefinition, QuadrantId } from './types';
+import type {
+	Day,
+	DayId,
+	Quadrant,
+	QuadrantDefinition,
+	QuadrantId,
+	ReviewSectionId,
+	WeekReview,
+} from './types';
 
 export const VIEW_TYPE_WEEKLY_SCHEDULE = 'weekly-schedule-view';
 
@@ -63,6 +71,39 @@ export function createEmptyDays(): Day[] {
 		id,
 		quadrants: QUADRANTS.map(createQuadrant),
 	}));
+}
+
+/**
+ * The four review sections, in the order they are written to the file.
+ *
+ * The order is fixed here rather than taken from the file: a week read back and
+ * written out again has to produce the same bytes, whatever order a hand-edited
+ * file happened to put the sections in.
+ */
+export const REVIEW_SECTIONS: readonly ReviewSectionId[] = ['plan', 'do', 'check', 'act'];
+
+export function isReviewSectionId(value: string): value is ReviewSectionId {
+	return REVIEW_SECTIONS.some((section) => section === value);
+}
+
+/**
+ * The letter each review section stands for.
+ *
+ * The four sections are PDCA, and these are what say so: a panel of four
+ * paragraphs headed only `计划 / 执行 / 检查 / 改进` is four notes, while the
+ * same four headed `P / D / C / A` are a frame the week is read through.
+ * Letters are initials of the same four words in every language, so they are
+ * data here and are never translated — only the name beside one is.
+ */
+export const REVIEW_SECTION_LETTERS: Record<ReviewSectionId, string> = {
+	plan: 'P',
+	do: 'D',
+	check: 'C',
+	act: 'A',
+};
+
+export function createEmptyReview(): WeekReview {
+	return { plan: [], do: [], check: [], act: [] };
 }
 
 /**

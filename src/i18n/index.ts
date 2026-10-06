@@ -1,7 +1,7 @@
 import { moment } from 'obsidian';
 import { en, type TranslationKey, type Translations } from './locales/en';
 import { zh } from './locales/zh';
-import type { DayId } from '../types';
+import type { DayId, ReviewSectionId } from '../types';
 
 /**
  * Locales the plugin ships. Anything else falls back: a regional variant falls
@@ -161,5 +161,86 @@ export function quadrantParts(
 
 /** Separator between the importance and urgency parts, e.g. `重要 · 紧急`. */
 export const QUADRANT_SEPARATOR = ' · ';
+
+/** Review sections are named by id, so their wording is mapped, not stored. */
+const REVIEW_KEYS: Record<ReviewSectionId, TranslationKey> = {
+	plan: 'review.plan',
+	do: 'review.do',
+	check: 'review.check',
+	act: 'review.act',
+};
+
+/**
+ * Heading of one review section, e.g. `Plan` or `计划`.
+ *
+ * This is the heading a week is written under and read back by, which is why it
+ * is the one name for a step that can never be reworded: the serializer looks
+ * for it, in the file's own language. What the panel prints is `reviewStepName`.
+ */
+export function reviewSectionLabel(
+	id: ReviewSectionId,
+	locale: Locale = getLocale(),
+): string {
+	return template(REVIEW_KEYS[id], locale);
+}
+
+/**
+ * The four questions PDCA asks of a week, so they are mapped rather than one
+ * string repeated.
+ *
+ * What a section asks is what an empty one is entered from: the question is the
+ * label of the row that adds its first item, and the hint on every item after
+ * it. A section is four fifths of what a first review is written from, and a
+ * question is the only thing telling a writer what belongs there.
+ */
+const REVIEW_QUESTION_KEYS: Record<ReviewSectionId, TranslationKey> = {
+	plan: 'board.reviewQuestion.plan',
+	do: 'board.reviewQuestion.do',
+	check: 'board.reviewQuestion.check',
+	act: 'board.reviewQuestion.act',
+};
+
+/**
+ * What a review section asks for, e.g. `What you set out to do`.
+ *
+ * Board wording rather than file wording, so it follows the interface language
+ * and is never written to a week.
+ */
+export function reviewQuestion(
+	id: ReviewSectionId,
+	locale: Locale = getLocale(),
+): string {
+	return template(REVIEW_QUESTION_KEYS[id], locale);
+}
+
+/**
+ * What the panel calls each step — the file's word for it, and in a language
+ * that has translated that word away, the word the letter stands for.
+ *
+ * Two names for one step rather than one, because they answer two questions.
+ * `reviewSectionLabel` says what a week's file is written under and is
+ * untouchable; this one is what a reader is shown, and a reader shown only
+ * `计划` beside a `P` has no way to reach the frame the panel is built around.
+ * Board wording, so saying it costs no file anything.
+ */
+const REVIEW_STEP_KEYS: Record<ReviewSectionId, TranslationKey> = {
+	plan: 'board.reviewStep.plan',
+	do: 'board.reviewStep.do',
+	check: 'board.reviewStep.check',
+	act: 'board.reviewStep.act',
+};
+
+/** Name of one step of the frame, e.g. `计划（Plan）` or `Plan`. */
+export function reviewStepName(
+	id: ReviewSectionId,
+	locale: Locale = getLocale(),
+): string {
+	return template(REVIEW_STEP_KEYS[id], locale);
+}
+
+/** Heading a week's review is written under, e.g. `Review` or `复盘`. */
+export function reviewTitle(locale: Locale = getLocale()): string {
+	return template('review.title', locale);
+}
 
 export type { TranslationKey, Translations };

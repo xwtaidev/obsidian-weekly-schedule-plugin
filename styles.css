@@ -6,7 +6,8 @@ and muted semantic colour only — no shadows, no nested card borders, no solid
 colour blocks to denote priority.
 
 Layout: three days per row, three rows (3 + 3 + 1). Quadrants stack vertically
-inside each day.
+inside each day, and the week's review takes the two cells the seventh day
+leaves over — nine members, a full 3x3.
 */
 
 /*
@@ -38,6 +39,10 @@ it — so a new surface that colours a quadrant has to be added here.
 	/* Fitted to the pane by the view; the declaration lives here, not on the
 	   grid, because an inline value on the container cannot override it there. */
 	--ws-columns: 3;
+	/* Set by the view alongside --ws-columns, and defaulted here to what three
+	   columns want: that is the shape the grid is built around, and a pane wide
+	   enough for three days is the one that never has a value written. */
+	--ws-review-span: 2;
 
 	overflow: auto;
 }
@@ -142,10 +147,15 @@ it — so a new surface that colours a quadrant has to be added here.
 	color: var(--text-normal);
 }
 
-/* Tactile press stands in for elevation feedback. */
+/* Tactile press stands in for elevation feedback. Only for the buttons this is
+   safe on: each of them is a small, fixed-size one, where shrinking by three
+   percent moves an edge by less than a pixel. The add row is not among them —
+   it runs the width of a cell, or of two under a week's review, and there the
+   same shrink pulls its left edge some nine pixels in from under the pointer,
+   so the release lands outside the button and the click never fires. It answers
+   a press by holding the hover tint instead (see `.weekly-schedule-add`). */
 .weekly-schedule-button:active,
-.weekly-schedule-text-button:active,
-.weekly-schedule-add:active {
+.weekly-schedule-text-button:active {
 	transform: scale(0.97);
 }
 
@@ -157,7 +167,7 @@ it — so a new surface that colours a quadrant has to be added here.
 /* ---------- Board ---------- */
 
 /* Three days per row. The seventh day takes the first column of the last row
-   and the remaining space is left empty. */
+   and the review panel, spanning the other two, closes it. */
 .weekly-schedule-board {
 	display: grid;
 	grid-template-columns: repeat(var(--ws-columns), minmax(0, 1fr));
@@ -434,8 +444,11 @@ button.weekly-schedule-day-carry:focus-visible {
 	border-radius: 3px;
 }
 
+/* The hint is read off the element rather than written here: a string in the
+   stylesheet is one no language switch can reach, and this one used to be
+   Chinese in every language. `:empty` is a row nothing has been typed into. */
 .weekly-schedule-task-text:empty::before {
-	content: '输入待办事项…';
+	content: attr(data-placeholder);
 	color: var(--text-faint);
 }
 
@@ -471,14 +484,15 @@ button.weekly-schedule-day-carry:focus-visible {
 	opacity: 0.75;
 }
 
-.weekly-schedule-task.is-done .weekly-schedule-task-button {
+.weekly-schedule-task.is-done .weekly-schedule-row-button {
 	color: var(--text-faint);
 	opacity: 0.75;
 }
 
 /* Row controls hold their space at all times, so revealing them never reflows
-   the task text. */
-.weekly-schedule-task-controls {
+   the text. One set for both kinds of row: a task and an item of the review are
+   each a line of the week that can be put in another place or dropped. */
+.weekly-schedule-row-controls {
 	display: flex;
 	gap: 1px;
 	flex: 0 0 auto;
@@ -486,12 +500,14 @@ button.weekly-schedule-day-carry:focus-visible {
 	transition: opacity 120ms ease;
 }
 
-.weekly-schedule-task:hover .weekly-schedule-task-controls,
-.weekly-schedule-task:focus-within .weekly-schedule-task-controls {
+.weekly-schedule-task:hover .weekly-schedule-row-controls,
+.weekly-schedule-task:focus-within .weekly-schedule-row-controls,
+.weekly-schedule-review-item:hover .weekly-schedule-row-controls,
+.weekly-schedule-review-item:focus-within .weekly-schedule-row-controls {
 	opacity: 1;
 }
 
-.weekly-schedule-task-button {
+.weekly-schedule-row-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -507,12 +523,12 @@ button.weekly-schedule-day-carry:focus-visible {
 	cursor: pointer;
 }
 
-.weekly-schedule-task-button:hover {
+.weekly-schedule-row-button:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.weekly-schedule-task-button svg {
+.weekly-schedule-row-button svg {
 	width: 12px;
 	height: 12px;
 }
@@ -523,11 +539,17 @@ button.weekly-schedule-day-carry:focus-visible {
    Obsidian's own stylesheet styles `button:not(.clickable-icon)` with the theme's
    fill and input shadow, and that selector (0,1,1) outranks a lone class (0,1,0).
    Every quadrant therefore showed a raised grey button with the text stuck inside
-   it, which is what made the board read as a page of buttons. Scoping to the cell
-   (0,2,0) outranks it, so this row stays flat whatever the theme does.
+   it, which is what made the board read as a page of buttons. Scoping to what
+   holds the row — a cell, or a review section (0,2,0) — outranks it, so this row
+   stays flat whatever the theme does.
    Naming the row by its own class rather than fixing the theme means the row keeps
-   the theme's colours and font; only the box is taken away. */
-.weekly-schedule-cell .weekly-schedule-add {
+   the theme's colours and font; only the box is taken away.
+
+   One class for both because they are one thing: the same row that opens a cell's
+   first task opens a review section's first item, in the same place, and a second
+   set of rules would only be a second place for the two to drift apart. */
+.weekly-schedule-cell .weekly-schedule-add,
+.weekly-schedule-review-section .weekly-schedule-add {
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -549,8 +571,15 @@ button.weekly-schedule-day-carry:focus-visible {
 		background-color 120ms ease;
 }
 
+/* A full-width row must not move under the pointer it is answering: the press
+   is answered by the tint alone, which is why `:active` is listed beside
+   `:hover` rather than by a transform as the small buttons have. */
 .weekly-schedule-cell .weekly-schedule-add:hover,
-.weekly-schedule-cell .weekly-schedule-add:focus-visible {
+.weekly-schedule-cell .weekly-schedule-add:active,
+.weekly-schedule-cell .weekly-schedule-add:focus-visible,
+.weekly-schedule-review-section .weekly-schedule-add:hover,
+.weekly-schedule-review-section .weekly-schedule-add:active,
+.weekly-schedule-review-section .weekly-schedule-add:focus-visible {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
@@ -565,6 +594,216 @@ button.weekly-schedule-day-carry:focus-visible {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* ---------- Week review ---------- */
+
+/* The review is the eighth member of the grid: with three days per row it lands
+   under the week's last day and takes the two cells that day leaves over, which
+   is what makes the board end on a complete row instead of on a hole. Laid out
+   as a column like a day's — a heading rule over what it holds — and given no
+   card of its own, so it reads as part of the board rather than as a surface
+   dropped on top of it. */
+.weekly-schedule-review {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	grid-column: span var(--ws-review-span);
+}
+
+/* The heading is the whole handle, because it is the only line the panel keeps
+   when it is folded. The element is named in the selector on purpose: Obsidian
+   styles buttons through `button:not(.clickable-icon)`, which outweighs a bare
+   class, and it is that rule that would give this one a fill, a shadow, a
+   radius, horizontal padding and an input height — every one of them something
+   a heading does not have. */
+button.weekly-schedule-review-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	height: auto;
+	padding: 0 0 7px;
+	border: none;
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	background-color: transparent;
+	box-shadow: none;
+	color: inherit;
+	font-weight: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.weekly-schedule-review-name {
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+/* How the week went. The rate rather than the counts, and sitting against the
+   right edge because it is a reading — the strip below the board is where the
+   week is read out in full, and repeating that here would make two places say
+   the same thing. */
+.weekly-schedule-review-count {
+	margin-left: auto;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+}
+
+.weekly-schedule-review-chevron {
+	display: flex;
+	flex: 0 0 auto;
+	color: var(--text-faint);
+}
+
+.weekly-schedule-review-chevron .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+/* A glyph over a rule, not a button surface: every heading on this board is
+   typography, and a chip appearing on hover would make this one a control. */
+button.weekly-schedule-review-header:hover,
+button.weekly-schedule-review-header:active {
+	background-color: transparent;
+	box-shadow: none;
+}
+
+button.weekly-schedule-review-header:hover .weekly-schedule-review-name {
+	color: var(--text-accent);
+}
+
+/* Keyboard focus still has to be visible, and an outline is the one ring that
+   costs no layout and paints no fill. */
+button.weekly-schedule-review-header:focus-visible {
+	background-color: transparent;
+	box-shadow: none;
+	outline: 2px solid var(--background-modifier-border-focus, var(--interactive-accent));
+	outline-offset: 2px;
+}
+
+/* A folded panel keeps its heading and nothing else. The view does not draw a
+   body for one either; the attribute is set as well so that what the view means
+   by folded and what this rule hides cannot come apart. */
+.weekly-schedule-review[data-folded='true'] .weekly-schedule-review-body {
+	display: none;
+}
+
+.weekly-schedule-review-body {
+	display: flex;
+	flex-direction: column;
+}
+
+/* One section per letter of PDCA: a small label over its items, which is the
+   shape a priority cell has. Without that cell's accent rule — the four parts
+   are four moments of one week, not four priorities. */
+.weekly-schedule-review-section {
+	display: flex;
+	flex-direction: column;
+	margin-top: 14px;
+}
+
+/* The letter and the word it stands for, read as one label. The letter is what
+   names the step, so it is lifted out of the sentence onto a chip of its own —
+   kept small and faint enough that four of them stacked still read as four
+   labels rather than as four buttons. */
+.weekly-schedule-review-label {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--text-muted);
+}
+
+/* The chip is the theme's accent mixed down rather than a colour of its own:
+   PDCA is a frame around the week, not a fourth palette beside the quadrants',
+   and every theme already has an accent that means "this matters".
+
+   The letter itself is drawn in the normal ink, not the accent: Obsidian's own
+   --text-accent is a hue chosen for accent-sized text, and on this chip it
+   measured 3.7:1 in a dark theme — under the floor for 10px type. The tint is
+   what says "this is a step", and the ink stays readable in both themes. */
+.weekly-schedule-review-letter {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 15px;
+	height: 15px;
+	border-radius: 3px;
+	background-color: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+	color: var(--text-normal);
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: 0;
+}
+
+/* The items of one section, one line each. The dot is drawn beside the text
+   rather than written into it, which is what holds an item running over several
+   lines indented under its own first line instead of under the dot — the same
+   shape a task's continuation line has. */
+.weekly-schedule-review-list {
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+}
+
+/* The box a task row has, and for the same two reasons: it puts the dot level
+   with the `+` of the row that opened the section, and it is what shows which
+   line the controls belong to while the pointer is over one. */
+.weekly-schedule-review-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 7px;
+	padding: 4px 6px 4px 4px;
+	border-radius: 4px;
+	transition: background-color 120ms ease;
+}
+
+.weekly-schedule-review-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* Decoration, not content. An item is marked by the same dot in every language,
+   so it is a glyph rather than a string and has no business in the locales; it
+   is faint because it marks a line rather than saying anything about it. */
+.weekly-schedule-review-bullet {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.weekly-schedule-review-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: 13px;
+	line-height: 1.6;
+	/* An item may be written over several lines, and the break between them is a
+	   newline character in the text, so it only shows if the whitespace is
+	   kept. */
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	cursor: text;
+	outline: none;
+	border-radius: 3px;
+}
+
+/* The hint is read off the element, the way a task's is. It is also what gives
+   an item holding nothing a line to put the caret on: an empty block has no box
+   of its own, and a line nobody can see is a line nobody can write. */
+.weekly-schedule-review-text:empty::before {
+	content: attr(data-placeholder);
+	color: var(--text-faint);
+}
+
+.weekly-schedule-review-text:focus {
+	background-color: var(--background-modifier-hover);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
 /* ---------- Week stats ---------- */

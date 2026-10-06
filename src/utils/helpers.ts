@@ -64,3 +64,17 @@ export function fitColumns(
 	const fitting = Math.floor((availableWidth + gap) / (minColumnWidth + gap));
 	return Math.max(1, Math.min(maxColumns, itemCount, fitting));
 }
+
+/**
+ * How many day columns the week's review panel takes.
+ *
+ * Three days per row is the shape the board is built around, and the week is
+ * seven days plus this one panel: spanning two is what makes 9 cells land as a
+ * full 3x3, so the board ends on a complete row instead of on the two empty
+ * cells the seventh day leaves over. A two-column pane is closed by one cell
+ * instead — a panel spanning two there would not fit beside the seventh day,
+ * would be pushed onto a row of its own, and would leave that same gap behind.
+ */
+export function reviewSpan(columns: number): number {
+	return columns >= 3 ? 2 : 1;
+}

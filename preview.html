@@ -204,10 +204,10 @@ DAYS.forEach((day, index) => {
 			row.innerHTML = `
 				<input type="checkbox" class="weekly-schedule-checkbox" ${task.done ? 'checked' : ''}>
 				<div class="weekly-schedule-task-text">${task.text}</div>
-				<div class="weekly-schedule-task-controls">
-					<button class="weekly-schedule-task-button" aria-label="上移">↑</button>
-					<button class="weekly-schedule-task-button" aria-label="下移">↓</button>
-					<button class="weekly-schedule-task-button" aria-label="删除">×</button>
+				<div class="weekly-schedule-row-controls">
+					<button class="weekly-schedule-row-button" aria-label="上移">↑</button>
+					<button class="weekly-schedule-row-button" aria-label="下移">↓</button>
+					<button class="weekly-schedule-row-button" aria-label="删除">×</button>
 				</div>`;
 			list.append(row);
 		}

@@ -38,6 +38,19 @@ export const en = {
 	'quadrant.urgent': 'urgent',
 	'quadrant.notUrgent': 'not urgent',
 
+	// The week's own review, written at the end of the week's file under a
+	// heading of its own. Like the day and quadrant wording these are file
+	// headings as much as labels: a section is written in the file's language
+	// rather than the interface's, so saving never translates a week. The letters
+	// P/D/C/A belong to the board alone — a heading is there to be read and
+	// parsed, and spelling an acronym out in it would only be something else to
+	// get wrong by hand.
+	'review.title': 'Review',
+	'review.plan': 'Plan',
+	'review.do': 'Do',
+	'review.check': 'Check',
+	'review.act': 'Act',
+
 	// Board toolbar and task rows.
 	'board.previousWeek': 'Previous week',
 	'board.nextWeek': 'Next week',
@@ -47,6 +60,36 @@ export const en = {
 	'board.showCompleted': 'Show completed',
 	'board.openNote': 'Open note',
 	'board.addTask': 'Add a task',
+	// The panel's own heading. The review is named by the file's wording; the
+	// frame around it is the board's, so the acronym is spelled out here and
+	// nowhere near the heading a week is written under.
+	'board.reviewPanel': 'PDCA review',
+	// Hints for a field that is empty. Drawn by CSS from a `data-placeholder`
+	// attribute rather than written into the stylesheet, where the one for a
+	// task used to sit: a hint is a string like any other, and a string in the
+	// stylesheet is one no language switch can reach.
+	'board.taskPlaceholder': 'Type a task…',
+	// The four questions PDCA asks of a week. Each does two jobs: it is the label
+	// of the row that adds a section's first item, and the hint on the item once
+	// that row has become one. One string rather than two, because the moment
+	// between them is a click — the row that asks the question is replaced by the
+	// line the answer goes on, and a second wording would only be a second thing
+	// to keep in step.
+	'board.reviewQuestion.plan': 'What you set out to do',
+	'board.reviewQuestion.do': 'What actually got done',
+	'board.reviewQuestion.check': 'Where it fell short, and why',
+	'board.reviewQuestion.act': 'What to change next week',
+	// What the panel calls each step, which is the file's word plus — where the
+	// two are not the same word — the one its letter stands for. `计划` beside a
+	// `P` does not say why it is Plan, and the frame is the point of the panel;
+	// in English the letter's word is the name already, so nothing is repeated
+	// and this is the file's wording unchanged. Board wording either way, and so
+	// never reached by the serializer: the heading a week is written under is
+	// `计划`, and a reader's language has no business in a file.
+	'board.reviewStep.plan': 'Plan',
+	'board.reviewStep.do': 'Do',
+	'board.reviewStep.check': 'Check',
+	'board.reviewStep.act': 'Act',
 	'board.moveUp': 'Move up',
 	'board.moveDown': 'Move down',
 	'board.delete': 'Delete',
@@ -79,7 +122,7 @@ export const en = {
 		'Which day the board starts with. Week numbers in file names are unaffected by this.',
 	'settings.taskCommitKey.name': 'Enter key in a task',
 	'settings.taskCommitKey.desc':
-		'What Enter does while writing a task, which may run over several lines. Committing also opens the next task underneath; the other Enter starts a new line, and Cmd/Ctrl+Enter commits and stops.',
+		'What Enter does while writing a task, which may run over several lines. Committing also opens the next task underneath; the other Enter starts a new line, and Cmd/Ctrl+Enter commits and stops. A line of the weekly review is written the same way.',
 	'settings.taskCommitKey.enter': 'Enter commits and opens the next task',
 	'settings.taskCommitKey.shiftEnter': 'Shift+Enter commits and opens the next task',
 	'settings.openBoard.name': 'Open board',

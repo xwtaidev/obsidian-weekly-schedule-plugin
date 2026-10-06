@@ -10,14 +10,46 @@
  *   back as one task, and what a task cannot hold is dropped rather than lost;
  * - a task with nothing in it is not one: it is not written, it earns its cell no
  *   heading, and the week's totals do not count it;
+ * - the week's review is a list of items rather than work: an item is written as
+ *   a bullet, an indented line continues the one above it, nothing written there
+ *   becomes a task, and a section holding no item earns no heading;
+ * - the review reads as PDCA: the four sections spell those letters in the order
+ *   they are drawn and written, each asks its own question and is named by the
+ *   word its letter stands for, and the panel's wording is the board's own,
+ *   which can never reach a file;
+ * - a week written before the review existed reads back as one nobody has
+ *   reviewed, and is written out again exactly as it was;
  * - dates, plurals and notices read correctly in both languages.
  *
  * Run with `npm run check:i18n`.
  */
 import { moment, setStubLanguage } from './obsidian-stub';
-import { hasTaskText, normalizeTaskText, parseSchedule, serializeSchedule } from '../../src/markdown';
+import {
+	REVIEW_SECTIONS,
+	REVIEW_SECTION_LETTERS,
+	createEmptyReview,
+	isReviewSectionId,
+} from '../../src/constants';
+import {
+	hasReviewText,
+	hasTaskText,
+	normalizeTaskText,
+	parseSchedule,
+	serializeSchedule,
+} from '../../src/markdown';
+import { reviewSpan } from '../../src/utils/helpers';
 import { formatWeekLabel, formatWeekRange } from '../../src/i18n/format';
-import { getLocale, quadrantParts, syncLocale, t, tp } from '../../src/i18n/index';
+import {
+	getLocale,
+	quadrantParts,
+	reviewQuestion,
+	reviewSectionLabel,
+	reviewStepName,
+	reviewTitle,
+	syncLocale,
+	t,
+	tp,
+} from '../../src/i18n/index';
 import { en } from '../../src/i18n/locales/en';
 import { zh } from '../../src/i18n/locales/zh';
 import type { Day, DayId, QuadrantId, WeekSchedule } from '../../src/types';
@@ -65,6 +97,13 @@ function fill(
 	done = false,
 ): void {
 	cell(schedule, day, quadrant)?.tasks.push({ id: `task:${text}`, text, done });
+}
+
+/** Every task of the week, whatever day and cell it sits in. */
+function allTasks(schedule: WeekSchedule): string[] {
+	return schedule.days.flatMap((day) =>
+		day.quadrants.flatMap((quadrant) => quadrant.tasks.map((task) => task.text)),
+	);
 }
 
 // --- the dictionaries cover each other ------------------------------------
@@ -271,6 +310,253 @@ const waitingText = serializeSchedule(waiting);
 check('only the task holding something is written', (waitingText.match(/^- \[/gm) ?? []).length, 1);
 check('and a cell holding only a row like that earns no heading', (waitingText.match(/^### /gm) ?? []).length, 1);
 
+// --- the week's review -----------------------------------------------------
+// Four sections of items, written after the days. An item is a bullet, the way a
+// task is a checkbox — the same shape of line, without the box, because a review
+// holds what was noticed and decided rather than work to be done. Nothing in it
+// becomes a task, and a section holding no item earns no heading, so a week
+// nobody reviewed is written out exactly as it was read.
+use('en');
+
+const reviewed = parseSchedule('', WEEK_START, PATH);
+fill(reviewed, 'mon', 'q1', 'Ship it');
+reviewed.review.plan = ['先把周报自动化推出去'];
+reviewed.review.check = ['q3 拖了 3 条，都是重要不紧急'];
+const reviewedText = serializeSchedule(reviewed);
+
+check(
+	'the review is written after the days',
+	reviewedText.indexOf('## Review') > reviewedText.indexOf('- [ ] Ship it'),
+	true,
+);
+check(
+	'a section is written under its own heading, each item as a bullet',
+	reviewedText.includes('### Plan\n- 先把周报自动化推出去\n'),
+	true,
+);
+check('a section holding nothing earns no heading', (reviewedText.match(/^### /gm) ?? []).length, 3);
+check(
+	'a reviewed week is read back exactly as it was written',
+	parseSchedule(reviewedText, WEEK_START, PATH).review,
+	{
+		plan: ['先把周报自动化推出去'],
+		do: [],
+		check: ['q3 拖了 3 条，都是重要不紧急'],
+		act: [],
+	},
+);
+check(
+	'and writing it out again changes nothing',
+	serializeSchedule(parseSchedule(reviewedText, WEEK_START, PATH)),
+	reviewedText,
+);
+
+check(
+	'every bullet is an item of its own',
+	parseSchedule('## Review\n\n### Check\n- 一\n- 二\n- 三\n', WEEK_START, PATH).review.check,
+	['一', '二', '三'],
+);
+check(
+	'and a section written out by hand is read as the items it looks like',
+	parseSchedule('## Review\n\n### Check\n一\n\n二\n', WEEK_START, PATH).review.check,
+	['一', '二'],
+);
+
+const continued = '## Review\n\n### Check\n- 一\n  二\n';
+check(
+	'an indented line continues the item above it rather than opening another',
+	parseSchedule(continued, WEEK_START, PATH).review.check,
+	['一\n二'],
+);
+check(
+	'and an item running over several lines is written back the way it came',
+	serializeSchedule(parseSchedule(continued, WEEK_START, PATH)),
+	'# 2026-W12\n\n## Review\n\n### Check\n- 一\n  二\n',
+);
+
+const spaced = parseSchedule('', WEEK_START, PATH);
+spaced.review.do = ['  \n\n  ', ''];
+check(
+	'a section holding only space earns no heading either',
+	(serializeSchedule(spaced).match(/^### /gm) ?? []).length,
+	0,
+);
+check(
+	'and an item holding nothing is not written at all',
+	(serializeSchedule(spaced).match(/^- /gm) ?? []).length,
+	0,
+);
+
+const boxed = parseSchedule(
+	'## Review\n\n### Check\n- [ ] 这一行不是任务\n- 一句普通的话\n',
+	WEEK_START,
+	PATH,
+);
+check(
+	'a checkbox in the review is part of its line rather than a task',
+	boxed.review.check,
+	['[ ] 这一行不是任务', '一句普通的话'],
+);
+check('and nothing written in the review becomes a task', allTasks(boxed), []);
+check(
+	'reading a section and writing it out again is a fixed point',
+	serializeSchedule(parseSchedule(serializeSchedule(boxed), WEEK_START, PATH)),
+	serializeSchedule(boxed),
+);
+
+check('a review holding nothing does not count as written', hasReviewText(createEmptyReview()), false);
+check(
+	'nor does one holding only space',
+	hasReviewText({ ...createEmptyReview(), check: ['  \n\n '] }),
+	false,
+);
+check(
+	'nor one holding only the item an add row has just opened',
+	hasReviewText({ ...createEmptyReview(), check: ['', ''] }),
+	false,
+);
+check(
+	'one section written is enough',
+	hasReviewText({ ...createEmptyReview(), act: ['一句'] }),
+	true,
+);
+check('a section id is recognized as itself', isReviewSectionId('plan'), true);
+check('and not as its own heading', isReviewSectionId('Plan'), false);
+check('nor as anything else', isReviewSectionId('nope'), false);
+// The panel is read as a cycle, so the four sections have to spell it out in
+// the order they are drawn and written — PDCA is not four labels that happen to
+// start with those letters in some other order.
+check(
+	'the four sections spell the frame they belong to',
+	REVIEW_SECTIONS.map((id) => REVIEW_SECTION_LETTERS[id]).join(''),
+	'PDCA',
+);
+check(
+	'and each letter stands for one section only',
+	new Set(REVIEW_SECTIONS.map((id) => REVIEW_SECTION_LETTERS[id])).size,
+	REVIEW_SECTIONS.length,
+);
+// A step is named by the file's word for it, and — where the letter's word is not
+// that same word — by the letter's word beside it, so that `计划` next to a `P`
+// says which step of PDCA it is. Board wording: the file keeps its heading.
+check(
+	'each step is named by the word its letter stands for',
+	REVIEW_SECTIONS.map((id) => reviewStepName(id, 'en')),
+	['Plan', 'Do', 'Check', 'Act'],
+);
+check(
+	'and a language that needed the word said adds it',
+	REVIEW_SECTIONS.map((id) => reviewStepName(id, 'zh')),
+	['计划（Plan）', '执行（Do）', '检查（Check）', '改进（Act）'],
+);
+check(
+	'without renaming the heading its file is written under',
+	REVIEW_SECTIONS.map((id) => [
+		reviewStepName(id, 'zh').startsWith(reviewSectionLabel(id, 'zh')),
+		reviewStepName(id, 'zh') === reviewSectionLabel(id, 'zh'),
+	]),
+	[
+		[true, false],
+		[true, false],
+		[true, false],
+		[true, false],
+	],
+);
+
+check('the panel spans two columns where the grid is three wide', reviewSpan(3), 2);
+check('one where it is two, since a two-cell span would not fit beside Sunday', reviewSpan(2), 1);
+check('and one where it is one', reviewSpan(1), 1);
+
+const closedReview = '## Review\n\n### Plan\n计划一句\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 回到板子上\n';
+check(
+	'an unrecognized heading closes the review section',
+	parseSchedule('## Review\n\n### Check\n一句\n\n### 别的东西\n漏掉的\n', WEEK_START, PATH)
+		.review.check,
+	['一句'],
+);
+check(
+	'a day heading after the review leaves the review alone',
+	parseSchedule(closedReview, WEEK_START, PATH).review.plan,
+	['计划一句'],
+);
+check(
+	'and the day below it is still read as a day',
+	tasks(parseSchedule(closedReview, WEEK_START, PATH), 'mon', 'q1'),
+	[' :回到板子上'],
+);
+
+const outOfOrder = parseSchedule(
+	'## Review\n\n### Act\n先写的改进\n\n### Plan\n后写的计划\n',
+	WEEK_START,
+	PATH,
+);
+check(
+	'sections are read whatever order they come in',
+	[outOfOrder.review.plan, outOfOrder.review.act],
+	[['后写的计划'], ['先写的改进']],
+);
+check(
+	'and are written back in the order the plugin declares',
+	serializeSchedule(outOfOrder).indexOf('### Plan') <
+		serializeSchedule(outOfOrder).indexOf('### Act'),
+	true,
+);
+
+use('zh');
+const reviewZh = parseSchedule('', WEEK_START, PATH);
+reviewZh.review.act = ['周三、周五各留半天给 q3'];
+const reviewZhText = serializeSchedule(reviewZh);
+check('new review in zh: title heading', reviewZhText.includes('## 复盘'), true);
+check(
+	'new review in zh: section heading',
+	reviewZhText.includes('### 改进\n- 周三、周五各留半天给 q3\n'),
+	true,
+);
+// What the panel names a step and what a week is written under are two strings,
+// and the one that is never written is the one that carries the acronym's word.
+check(
+	'and the name the panel shows is not what the week is written with',
+	reviewZhText.includes('（'),
+	false,
+);
+
+use('en');
+check(
+	'an existing zh review keeps its wording',
+	serializeSchedule(parseSchedule(reviewZhText, WEEK_START, PATH)),
+	reviewZhText,
+);
+
+use('zh');
+check(
+	'an existing en review keeps its wording',
+	serializeSchedule(parseSchedule(reviewedText, WEEK_START, PATH)),
+	reviewedText,
+);
+
+// --- a week written before the review existed -----------------------------
+// The review was added to a plugin already in use, so every file already in a
+// vault has nothing under `## Review` — no empty section, no heading, not even
+// the field in memory. Reading one has to produce a review that is simply
+// unwritten, and writing it out again has to leave the file as it was found:
+// opening an old week must not be a way to rewrite it.
+const beforeReview = '# 2026-W12\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 老文件里的一条\n';
+const unreviewed = parseSchedule(beforeReview, WEEK_START, PATH);
+check('a file from before the review holds four empty sections', unreviewed.review, {
+	plan: [],
+	do: [],
+	check: [],
+	act: [],
+});
+check('so nothing in it reads as a review', hasReviewText(unreviewed.review), false);
+check('and its tasks are read as they always were', allTasks(unreviewed), ['老文件里的一条']);
+check('it is written back byte for byte', serializeSchedule(unreviewed), beforeReview);
+check(
+	'and gains no review heading on the way out',
+	serializeSchedule(unreviewed).includes('## 复盘'),
+	false,
+);
+
 // --- a language switch while the board is open ----------------------------
 use('zh');
 const openBoard = parseSchedule('', WEEK_START, PATH);
@@ -294,6 +580,32 @@ check(
 use('en');
 check('en day label', t('day.wed'), 'Wednesday');
 check('en quadrant parts', quadrantParts(true, false), ['Important', 'not urgent']);
+check('en review title', reviewTitle(), 'Review');
+check('en review section', reviewSectionLabel('act'), 'Act');
+check('en review step name', reviewStepName('act'), 'Act');
+check('en review panel names the frame', t('board.reviewPanel'), 'PDCA review');
+check(
+	'en review questions ask four different things',
+	REVIEW_SECTIONS.map((id) => reviewQuestion(id)),
+	[
+		'What you set out to do',
+		'What actually got done',
+		'Where it fell short, and why',
+		'What to change next week',
+	],
+);
+// The panel's heading and a week's own headings are two different strings on
+// purpose: the acronym is board wording, and board wording is the one thing the
+// serializer must never reach, or it would be written into every week's file —
+// and a file the user already had is never translated.
+check(
+	'the panel heading is not a heading a file is written under',
+	[
+		t('board.reviewPanel') === reviewTitle(),
+		REVIEW_SECTIONS.some((id) => t('board.reviewPanel') === reviewSectionLabel(id)),
+	],
+	[false, false],
+);
 check('en day count', t('day.openCount', { count: 3 }), '3 left');
 check('en plural, singular', tp('year.tasksTotal', 1), '1 task');
 check('en plural, plural', tp('year.tasksTotal', 4), '4 tasks');
@@ -314,6 +626,20 @@ check(
 use('zh');
 check('zh day label', t('day.wed'), '周三');
 check('zh quadrant parts', quadrantParts(false, true), ['不重要', '紧急']);
+check('zh review title', reviewTitle(), '复盘');
+check('zh review section', reviewSectionLabel('act'), '改进');
+check('zh review step name', reviewStepName('act'), '改进（Act）');
+check('zh review panel names the frame', t('board.reviewPanel'), 'PDCA 复盘');
+check(
+	'zh review questions ask four different things',
+	REVIEW_SECTIONS.map((id) => reviewQuestion(id)),
+	['本周打算做什么', '实际做成了什么', '差距在哪，为什么', '下周准备怎么改'],
+);
+check(
+	'and a section keeps the heading its file is written under',
+	REVIEW_SECTIONS.map((id) => reviewSectionLabel(id)),
+	['计划', '执行', '检查', '改进'],
+);
 check('zh day count', t('day.openCount', { count: 3 }), '3 项');
 check(
 	'zh week totals line',

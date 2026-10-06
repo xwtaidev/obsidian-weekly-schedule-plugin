@@ -1,7 +1,21 @@
 import { ItemView, Menu, moment, setIcon } from 'obsidian';
-import { QUADRANTS, VIEW_TYPE_WEEKLY_SCHEDULE } from '../constants';
+import {
+	QUADRANTS,
+	REVIEW_SECTIONS,
+	REVIEW_SECTION_LETTERS,
+	VIEW_TYPE_WEEKLY_SCHEDULE,
+	isReviewSectionId,
+} from '../constants';
 import { formatWeekLabel } from '../i18n/format';
-import { dayLabel, quadrantParts, syncLocale, t, tp } from '../i18n';
+import {
+	dayLabel,
+	quadrantParts,
+	reviewQuestion,
+	reviewStepName,
+	syncLocale,
+	t,
+	tp,
+} from '../i18n';
 import { hasTaskText, normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
 import {
@@ -12,13 +26,13 @@ import {
 	weekDays,
 	weekFilePath,
 } from '../utils/date';
-import { createTaskId, fitColumns } from '../utils/helpers';
+import { createTaskId, fitColumns, reviewSpan } from '../utils/helpers';
 import { placeCaretAtEnd, registerInlineEditor, sleep } from './inline-editor';
 import { YEAR_VIEW_ICON } from './weekly-schedule-year-view';
 import type { Moment } from '../utils/date';
 import type { WorkspaceLeaf } from 'obsidian';
 import type WeeklySchedulePlugin from '../main';
-import type { Day, Quadrant, Task, WeekSchedule } from '../types';
+import type { Day, Quadrant, ReviewSectionId, Task, WeekSchedule } from '../types';
 
 export const VIEW_ICON = 'calendar-days';
 
@@ -48,6 +62,26 @@ const GRID_GAP = 32;
 /** Grid padding (36px) plus the scrollbar Obsidian may keep on the pane. */
 const PANE_SLACK = 62;
 
+/** Which way the review panel's fold indicator points. */
+const REVIEW_OPEN_ICON = 'chevron-down';
+const REVIEW_FOLDED_ICON = 'chevron-right';
+
+/**
+ * A field on the board that can hold the caret, and what it is editing.
+ *
+ * Two kinds of field take one — a task's text and one item of the review — and
+ * both keep what has been typed in the DOM rather than in the model until they
+ * are committed. So both have to be readable back into the model before a
+ * re-render, and both have to be findable again after one.
+ *
+ * A task is found by its id, an item by where it sits: a task is a thing the
+ * board moves and deletes, while an item is a line of a section and the section
+ * is what holds it.
+ */
+type FocusedEditor =
+	| { kind: 'task'; id: string; text: string }
+	| { kind: 'review'; section: ReviewSectionId; index: number; text: string };
+
 /** Persisted with the workspace, so the open week survives an app restart. */
 interface ScheduleViewState extends Record<string, unknown> {
 	weekStart?: string;
@@ -70,6 +104,23 @@ export class WeeklyScheduleView extends ItemView {
 	private statsEl: HTMLElement | null = null;
 	/** Column count the grid was last laid out with. */
 	private columns = MAX_COLUMNS;
+	/** The rate in the review panel's heading, rewritten as the week changes. */
+	private reviewCountEl: HTMLElement | null = null;
+	/**
+	 * Whether the review panel is unfolded, or null to leave it at its default.
+	 *
+	 * The default is open. A week is reviewed by writing four sections, so a
+	 * panel folded down to its own title — which is every week, for as long as
+	 * nobody has written one — is a panel nobody opens. Once the user folds or
+	 * unfolds it, that is what they get until another week is opened, rather
+	 * than the panel deciding again under the pointer.
+	 */
+	private reviewOpen: boolean | null = null;
+
+	/** The panel's state: the choice last made, or open by default. */
+	private reviewIsOpen(): boolean {
+		return this.reviewOpen ?? true;
+	}
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -175,7 +226,7 @@ export class WeeklyScheduleView extends ItemView {
 		// what the user was editing: re-rendering replaces the DOM, so the
 		// caret has to be restored afterwards.
 		this.syncFocusedEditor();
-		const focused = this.focusedEditor()?.taskId ?? null;
+		const focused = this.focusedEditor();
 
 		// The file changed elsewhere while this board held an unflushed edit.
 		// Reloading now would discard that edit, so the in-memory board wins and
@@ -187,7 +238,7 @@ export class WeeklyScheduleView extends ItemView {
 		if (await this.plugin.store.reloadIfChanged(path)) {
 			await this.render();
 			if (focused) {
-				await this.focusTask(focused);
+				await this.restoreFocus(focused);
 			}
 		}
 	}
@@ -310,6 +361,9 @@ export class WeeklyScheduleView extends ItemView {
 
 		this.schedule = schedule;
 		this.renderedWeekStart = this.weekStart;
+		// A newly loaded week decides for itself whether its review opens; which
+		// state the last one was left in is no answer for this one.
+		this.reviewOpen = null;
 		this.renderBoard(schedule);
 	}
 
@@ -318,6 +372,10 @@ export class WeeklyScheduleView extends ItemView {
 		this.renderToolbar();
 		this.boardEl = this.contentEl.createDiv({ cls: 'weekly-schedule-board' });
 		schedule.days.forEach((day, index) => this.renderDay(day, index));
+		// The eighth cell of the grid, after the seven days: with three days per
+		// row it lands under the week's last day and takes the two cells that day
+		// leaves over.
+		this.renderReview(schedule);
 		this.renderStats(schedule);
 
 		// Now that the grid exists, fit it to the pane.
@@ -360,6 +418,314 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	/**
+	 * The week's own review, in the grid's last cell.
+	 *
+	 * Drawn as a column like a day's — a heading rule over what it holds — so it
+	 * reads as part of the board rather than as a surface laid over it. The
+	 * heading is also the whole handle: folding the panel leaves it, and that
+	 * one line is what the board then shows in place of two empty cells.
+	 *
+	 * The heading names the frame (PDCA) and each section opens with its letter,
+	 * so the four read as the four steps of one cycle rather than as four notes
+	 * that happen to sit together.
+	 */
+	private renderReview(schedule: WeekSchedule): void {
+		const board = this.boardEl;
+		if (!board) {
+			return;
+		}
+
+		const expanded = this.reviewIsOpen();
+		const panel = board.createDiv({ cls: 'weekly-schedule-review' });
+		panel.dataset.folded = expanded ? 'false' : 'true';
+
+		const header = panel.createEl('button', {
+			cls: 'weekly-schedule-review-header',
+			attr: { type: 'button', 'aria-expanded': String(expanded) },
+		});
+		header.createSpan({ cls: 'weekly-schedule-review-name', text: t('board.reviewPanel') });
+
+		// The rate and not the counts: the strip below the board already reads
+		// the week out in full, and what the panel wants beside its own heading
+		// is the one figure that says how the week went.
+		this.reviewCountEl = header.createSpan({ cls: 'weekly-schedule-review-count' });
+		this.updateReviewStats(schedule);
+		const chevron = header.createSpan({ cls: 'weekly-schedule-review-chevron' });
+		setIcon(chevron, expanded ? REVIEW_OPEN_ICON : REVIEW_FOLDED_ICON);
+		header.addEventListener('click', () => this.toggleReview());
+
+		if (!expanded) {
+			return;
+		}
+
+		// All four sections are drawn in the order they are written, whether or
+		// not they hold anything: PDCA is a frame whose parts keep their places,
+		// the same way the four priority cells of a day do, and a step you can
+		// only reach once you have written something is a step you cannot write.
+		const body = panel.createDiv({ cls: 'weekly-schedule-review-body' });
+		for (const id of REVIEW_SECTIONS) {
+			this.renderReviewSection(body, schedule, id);
+		}
+	}
+
+	/**
+	 * One step of PDCA: its letter and name, the items written under it, and —
+	 * while it holds none — the row that opens the first.
+	 *
+	 * The shape a priority cell has, add row included: a section that shows an
+	 * item does not get one, because there the way to the next item is Enter at
+	 * the end of the one being written, and the row would cost a line in every
+	 * section of every week to say what a keystroke can.
+	 *
+	 * The question a step asks lives on that row, so an empty section asks it
+	 * once, where the answer would go, instead of printing it again over every
+	 * item — and the click that adds the first item hands the question over to
+	 * the line the answer is written on.
+	 */
+	private renderReviewSection(
+		parent: HTMLElement,
+		schedule: WeekSchedule,
+		section: ReviewSectionId,
+	): void {
+		const block = parent.createDiv({ cls: 'weekly-schedule-review-section' });
+		const label = block.createDiv({ cls: 'weekly-schedule-review-label' });
+		// The letter first and set apart from the name, because it is the letter
+		// and not the name that says which step of PDCA this is.
+		label.createSpan({
+			cls: 'weekly-schedule-review-letter',
+			text: REVIEW_SECTION_LETTERS[section],
+		});
+		// No class on the name: it is the label's own typography, and the
+		// heading's class would make it read as a heading.
+		label.createSpan({ text: reviewStepName(section) });
+
+		const items = schedule.review[section];
+		if (items.length === 0) {
+			const add = block.createEl('button', {
+				cls: 'weekly-schedule-add',
+				attr: { type: 'button' },
+			});
+			add.createSpan({ cls: 'weekly-schedule-add-icon', text: '+' });
+			add.createSpan({ cls: 'weekly-schedule-add-label', text: reviewQuestion(section) });
+			add.addEventListener('click', () => void this.addReviewItem(section));
+			return;
+		}
+
+		const list = block.createDiv({ cls: 'weekly-schedule-review-list' });
+		items.forEach((text, index) => this.renderReviewItem(list, section, index, text));
+	}
+
+	/**
+	 * One item of a section: the dot that marks it as one, the field it is
+	 * written in, and the controls that move or drop it.
+	 *
+	 * The dot is drawn beside the text rather than written into it, which is what
+	 * holds an item running over several lines indented under its own first line,
+	 * the way a task's continuation line does.
+	 */
+	private renderReviewItem(
+		parent: HTMLElement,
+		section: ReviewSectionId,
+		index: number,
+		text: string,
+	): void {
+		const item = parent.createDiv({ cls: 'weekly-schedule-review-item' });
+		item.createSpan({ cls: 'weekly-schedule-review-bullet', text: '•' });
+
+		const field = item.createDiv({
+			cls: 'weekly-schedule-review-text',
+			attr: { contenteditable: 'plaintext-only', spellcheck: 'false' },
+		});
+		field.dataset.reviewSection = section;
+		field.dataset.reviewIndex = String(index);
+		// The question the step asks, on the line being written into it: the row
+		// that carried it was replaced by this one a click ago.
+		field.dataset.placeholder = reviewQuestion(section);
+		field.setText(text);
+		// A line like any other on this board, so Enter commits and opens the next
+		// one underneath — the same keystroke, from the same setting, as a task's.
+		registerInlineEditor(field, (value) => this.setReviewItem(section, index, value), {
+			commitKey: this.plugin.settings.taskCommitKey,
+			onCommit: (next) => this.finishReviewItem(section, index, next),
+		});
+
+		// The controls a task row carries, for the same reason: an item is a line
+		// of the week, and one that cannot be put in another place or taken out
+		// again is one that has to be retyped to change. Where it can move to is
+		// the section it was written under and nowhere else — see `moveReviewItem`.
+		const controls = item.createDiv({ cls: 'weekly-schedule-row-controls' });
+		const up = this.addRowControl(controls, 'chevron-up', t('board.moveUp'));
+		up.addEventListener('click', (event) => {
+			event.stopPropagation();
+			this.moveReviewItem(section, index, -1);
+		});
+		const down = this.addRowControl(controls, 'chevron-down', t('board.moveDown'));
+		down.addEventListener('click', (event) => {
+			event.stopPropagation();
+			this.moveReviewItem(section, index, 1);
+		});
+		const remove = this.addRowControl(controls, 'x', t('board.delete'));
+		remove.addEventListener('click', (event) => {
+			event.stopPropagation();
+			this.removeReviewItem(section, index);
+		});
+
+		this.addRowMenu(
+			item,
+			(delta) => this.moveReviewItem(section, index, delta),
+			() => this.removeReviewItem(section, index),
+		);
+	}
+
+	/**
+	 * Moves one item a place up or down within its own section.
+	 *
+	 * Within the section and no further: `计划` and `检查` are not two halves of
+	 * one list but two different questions, and an item that slid across is an
+	 * answer that changed under the writer. An item at either end of its section
+	 * stays where it is, which is what its own buttons do too.
+	 */
+	private moveReviewItem(section: ReviewSectionId, index: number, delta: number): void {
+		const items = this.schedule?.review[section];
+		const target = index + delta;
+		if (
+			!items ||
+			index < 0 ||
+			index >= items.length ||
+			target < 0 ||
+			target >= items.length
+		) {
+			return;
+		}
+
+		const [item] = items.splice(index, 1);
+		if (item !== undefined) {
+			items.splice(target, 0, item);
+		}
+		this.renderBoard(this.requireSchedule());
+		this.save();
+		void this.focusReviewItem(section, target);
+	}
+
+	/**
+	 * Drops one item.
+	 *
+	 * The section keeps its heading and whatever else it holds; one left holding
+	 * nothing goes back to the row that opens its first — which is where it
+	 * started, and how a section is emptied for good.
+	 */
+	private removeReviewItem(section: ReviewSectionId, index: number): void {
+		const items = this.schedule?.review[section];
+		if (!items || index < 0 || index >= items.length) {
+			return;
+		}
+
+		items.splice(index, 1);
+		this.renderBoard(this.requireSchedule());
+		this.save();
+	}
+
+	/**
+	 * Opens or folds the review panel.
+	 *
+	 * Nothing is focused on the way in: an empty step holds no field to put a
+	 * caret in, only the row that opens its first item, and unfolding is a look
+	 * at the week rather than a decision to start writing.
+	 */
+	private toggleReview(): void {
+		const schedule = this.schedule;
+		if (!schedule) {
+			return;
+		}
+
+		this.reviewOpen = !this.reviewIsOpen();
+		this.renderBoard(schedule);
+	}
+
+	/**
+	 * Keeps the panel's heading in step with what the board holds.
+	 *
+	 * Called from `save`, so a week whose tasks changed under the pointer moves
+	 * this figure at once rather than waiting for the next re-render — and so a
+	 * week whose last task just went shows no rate at all.
+	 */
+	private updateReviewStats(schedule: WeekSchedule | null = this.schedule): void {
+		if (!this.reviewCountEl || !schedule) {
+			return;
+		}
+		const { total, percent } = countTasks(schedule);
+		this.reviewCountEl.setText(
+			total > 0 ? t('board.stats.percent', { percent: percent ?? 0 }) : '',
+		);
+	}
+
+	/**
+	 * Gives a section its first item. This is the only thing the add row does,
+	 * since a section that already shows an item does not have one: there, the
+	 * way to the next item is Enter at the end of the one being written.
+	 */
+	private async addReviewItem(section: ReviewSectionId): Promise<void> {
+		await this.insertReviewItem(section, this.requireSchedule().review[section].length);
+	}
+
+	/** Draws a new empty item at `index` and puts the caret in it. */
+	private async insertReviewItem(section: ReviewSectionId, index: number): Promise<void> {
+		const schedule = this.requireSchedule();
+		schedule.review[section].splice(index, 0, '');
+		this.renderBoard(schedule);
+		await this.focusReviewItem(section, index);
+	}
+
+	/**
+	 * What a finished edit leaves behind — `finishTask`'s question, asked of an
+	 * item.
+	 *
+	 * An item with text stays where it is. An empty one goes: it is never written
+	 * to the file, so a keystroke that ended the edit would otherwise leave a
+	 * bullet on the board that the week does not hold. And the keystroke that
+	 * asked for another item gets one directly below — at the line just written
+	 * rather than at the foot of the section, so a list grows out of the item
+	 * being written.
+	 */
+	private finishReviewItem(section: ReviewSectionId, index: number, next: boolean): void {
+		const items = this.schedule?.review[section];
+		const item = items?.[index];
+		if (!items || item === undefined) {
+			return;
+		}
+
+		if (normalizeTaskText(item).length === 0) {
+			items.splice(index, 1);
+			this.renderBoard(this.requireSchedule());
+			return;
+		}
+		if (next) {
+			void this.insertReviewItem(section, index + 1);
+		}
+	}
+
+	/**
+	 * Stores what one item's editor holds.
+	 *
+	 * Normalized the way a task's text is — every line trimmed, blank lines
+	 * dropped — because that is what the file can hold: an item is a bullet, and
+	 * there is no blank line inside one. Keeping the model to the same shape as
+	 * the file means the board never shows a line the week would not save.
+	 */
+	private setReviewItem(section: ReviewSectionId, index: number, value: string): void {
+		const items = this.schedule?.review[section];
+		if (!items || index < 0 || index >= items.length) {
+			return;
+		}
+		const text = normalizeTaskText(value);
+		if (items[index] === text) {
+			return;
+		}
+		items[index] = text;
+		this.save();
+	}
+
+	/**
 	 * Fits the day columns to the pane.
 	 *
 	 * Three per row is the intended shape, so that is the ceiling. On a narrow
@@ -384,6 +750,7 @@ export class WeeklyScheduleView extends ItemView {
 		}
 		this.columns = columns;
 		this.contentEl.style.setProperty('--ws-columns', String(columns));
+		this.contentEl.style.setProperty('--ws-review-span', String(reviewSpan(columns)));
 	}
 
 	private renderToolbar(): void {
@@ -612,6 +979,9 @@ export class WeeklyScheduleView extends ItemView {
 			attr: { contenteditable: 'plaintext-only', spellcheck: 'false' },
 		});
 		text.dataset.taskId = task.id;
+		// The hint an empty row shows. It comes from the locale rather than from
+		// the stylesheet, where it used to be Chinese in every language.
+		text.dataset.placeholder = t('board.taskPlaceholder');
 		text.setText(task.text);
 		// Read per row rather than captured once: changing the setting re-renders
 		// the board, and every row has to be drawn with the new keystroke.
@@ -626,24 +996,54 @@ export class WeeklyScheduleView extends ItemView {
 			},
 		);
 
-		const controls = row.createDiv({ cls: 'weekly-schedule-task-controls' });
+		const controls = row.createDiv({ cls: 'weekly-schedule-row-controls' });
 		// "↑ ↓" in the row matches the button hint: reorder, do not delete.
-		const up = this.addTaskControl(controls, 'chevron-up', t('board.moveUp'));
+		const up = this.addRowControl(controls, 'chevron-up', t('board.moveUp'));
 		up.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.moveTask(quadrant, task.id, -1);
 		});
-		const down = this.addTaskControl(controls, 'chevron-down', t('board.moveDown'));
+		const down = this.addRowControl(controls, 'chevron-down', t('board.moveDown'));
 		down.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.moveTask(quadrant, task.id, 1);
 		});
-		const remove = this.addTaskControl(controls, 'x', t('board.delete'));
+		const remove = this.addRowControl(controls, 'x', t('board.delete'));
 		remove.addEventListener('click', (event) => {
 			event.stopPropagation();
 			this.removeTask(quadrant, task.id);
 		});
 
+		this.addRowMenu(
+			row,
+			(delta) => this.moveTask(quadrant, task.id, delta),
+			() => this.removeTask(quadrant, task.id),
+		);
+	}
+
+	private addRowControl(parent: HTMLElement, icon: string, tooltip: string): HTMLElement {
+		const button = parent.createEl('button', {
+			cls: 'clickable-icon weekly-schedule-row-button',
+			attr: { type: 'button', 'aria-label': tooltip },
+		});
+		setIcon(button, icon);
+		return button;
+	}
+
+	/**
+	 * The menu a row offers on a right-click: the three things its own controls
+	 * do, for a pointer that would rather not aim at an 18px target and for one
+	 * of a keyboard, which has no hover to reveal them with.
+	 *
+	 * One menu for both kinds of row, because they are one thing — a line of the
+	 * board that can be put in another place or dropped — and two menus would be
+	 * two places for the same three items to drift apart.
+	 */
+	private addRowMenu(
+		row: HTMLElement,
+		move: (delta: number) => void,
+		remove: () => void,
+	): void {
 		row.addEventListener('contextmenu', (event) => {
 			event.preventDefault();
 			const menu = new Menu();
@@ -651,32 +1051,23 @@ export class WeeklyScheduleView extends ItemView {
 				item
 					.setTitle(t('board.moveUp'))
 					.setIcon('chevron-up')
-					.onClick(() => this.moveTask(quadrant, task.id, -1)),
+					.onClick(() => move(-1)),
 			);
 			menu.addItem((item) =>
 				item
 					.setTitle(t('board.moveDown'))
 					.setIcon('chevron-down')
-					.onClick(() => this.moveTask(quadrant, task.id, 1)),
+					.onClick(() => move(1)),
 			);
 			menu.addSeparator();
 			menu.addItem((item) =>
 				item
 					.setTitle(t('board.delete'))
 					.setIcon('trash')
-					.onClick(() => this.removeTask(quadrant, task.id)),
+					.onClick(() => remove()),
 			);
 			menu.showAtMouseEvent(event);
 		});
-	}
-
-	private addTaskControl(parent: HTMLElement, icon: string, tooltip: string): HTMLElement {
-		const button = parent.createEl('button', {
-			cls: 'clickable-icon weekly-schedule-task-button',
-			attr: { type: 'button', 'aria-label': tooltip },
-		});
-		setIcon(button, icon);
-		return button;
 	}
 
 	/**
@@ -790,6 +1181,7 @@ export class WeeklyScheduleView extends ItemView {
 		if (this.schedule) {
 			this.plugin.store.markDirty(this.schedule.path);
 			this.updateStats(this.schedule);
+			this.updateReviewStats(this.schedule);
 		}
 	}
 
@@ -832,17 +1224,58 @@ export class WeeklyScheduleView extends ItemView {
 		await this.app.workspace.getLeaf('tab').openFile(file);
 	}
 
-	/** Id of the task whose inline editor currently has focus, if any. */
-	private focusedEditor(): { taskId: string; text: string } | null {
+	/** The inline editor that currently holds the caret, if any. */
+	private focusedEditor(): FocusedEditor | null {
 		const active = document.activeElement;
 		if (!(active instanceof HTMLElement) || !this.contentEl.contains(active)) {
 			return null;
 		}
+		const text = active.textContent ?? '';
 		const taskId = active.dataset.taskId;
-		if (!taskId) {
-			return null;
+		if (taskId) {
+			return { kind: 'task', id: taskId, text };
 		}
-		return { taskId, text: active.textContent ?? '' };
+		const section = active.dataset.reviewSection;
+		const index = Number(active.dataset.reviewIndex);
+		if (section && isReviewSectionId(section) && Number.isInteger(index)) {
+			return { kind: 'review', section, index, text };
+		}
+		return null;
+	}
+
+	/** Puts the caret back in the editor it was in before a re-render. */
+	private async restoreFocus(editor: FocusedEditor): Promise<void> {
+		if (editor.kind === 'review') {
+			await this.focusReviewItem(editor.section, editor.index);
+			return;
+		}
+		await this.focusTask(editor.id);
+	}
+
+	/**
+	 * Focuses one item's editor. Retried for the same reason a task's is: the
+	 * browser may not honour `focus()` on a contenteditable inside an element
+	 * that has only just been attached.
+	 *
+	 * Found by where it sits rather than by a name of its own: an item is a line
+	 * of a section, and a section's list is drawn in the order it holds.
+	 */
+	private async focusReviewItem(section: ReviewSectionId, index: number): Promise<void> {
+		const selector = `.weekly-schedule-review-text[data-review-section="${section}"]`;
+		for (let attempt = 0; attempt < 20; attempt += 1) {
+			const fields = this.contentEl.querySelectorAll<HTMLElement>(selector);
+			for (const field of Array.from(fields)) {
+				if (Number(field.dataset.reviewIndex) !== index) {
+					continue;
+				}
+				field.focus();
+				if (document.activeElement === field) {
+					placeCaretAtEnd(field);
+					return;
+				}
+			}
+			await sleep(25);
+		}
 	}
 
 	/**
@@ -859,10 +1292,16 @@ export class WeeklyScheduleView extends ItemView {
 		if (!editor || !this.schedule) {
 			return;
 		}
+
+		if (editor.kind === 'review') {
+			this.setReviewItem(editor.section, editor.index, editor.text);
+			return;
+		}
+
 		const text = normalizeTaskText(editor.text);
 		for (const day of this.schedule.days) {
 			for (const quadrant of day.quadrants) {
-				const task = quadrant.tasks.find((item) => item.id === editor.taskId);
+				const task = quadrant.tasks.find((item) => item.id === editor.id);
 				if (task && task.text !== text) {
 					task.text = text;
 					this.save();

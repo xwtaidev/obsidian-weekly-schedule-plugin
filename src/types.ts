@@ -47,12 +47,40 @@ export interface Task {
 /** Which keystroke saves a task's text rather than starting a new line in it. */
 export type TaskCommitKey = 'enter' | 'shiftEnter';
 
+/**
+ * The four sections of a week's review, in the order they are written to the
+ * file: plan, do, check, act.
+ *
+ * Wording is deliberately not stored, exactly as it is not for a quadrant: a
+ * section is recognized by its id, and its heading is derived from the id and
+ * the file's language when it is written.
+ */
+export type ReviewSectionId = 'plan' | 'do' | 'check' | 'act';
+
+/**
+ * A week's review: a list of items per section, empty when nothing has been
+ * written there.
+ *
+ * An item is a line, or a few lines run together — the shape a task's text has,
+ * and held to the same rule (`normalizeTaskText`), because it is the same thing:
+ * one thing to be read on a line of its own. Nothing else is kept. Items are not
+ * tasks and are not counted as work, and an item holding nothing is never
+ * written: a section holding none of those earns no heading in the file either.
+ */
+export type WeekReview = Record<ReviewSectionId, string[]>;
+
 export interface WeekSchedule {
 	/** Monday of the week, formatted `YYYY-MM-DD`. */
 	weekStart: string;
 	/** Vault path of the file backing this schedule. */
 	path: string;
 	days: Day[];
+	/**
+	 * The week's own review, looked back on once the week is over. Written after
+	 * the days, and always present — a week with nothing written holds four empty
+	 * sections rather than a missing field.
+	 */
+	review: WeekReview;
 	/**
 	 * Language the file's headings are written in, so editing a file keeps the
 	 * wording it already uses instead of translating it on every save. A file

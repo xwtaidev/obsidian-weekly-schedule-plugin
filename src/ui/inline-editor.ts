@@ -1,6 +1,12 @@
 /**
- * Inline plain-text editing helpers for the task rows. These are deliberately
- * free of plugin state: the board passes a callback and owns the data.
+ * Inline plain-text editing helpers for the task rows and the review's items.
+ * These are deliberately free of plugin state: the board passes a callback and
+ * owns the data.
+ *
+ * One kind of thing is edited this way — a line of the board, whether it is a
+ * task or an item of the review — and what ends the edit is a keystroke rather
+ * than the pointer, because a list is filled in by pressing Enter at the end of
+ * each line rather than by reaching for the line below.
  */
 
 import { normalizeTaskText } from '../markdown';
@@ -12,11 +18,11 @@ export function sleep(ms: number): Promise<void> {
 
 export interface InlineEditorOptions {
 	/** The keystroke that commits; the other Enter starts a new line. */
-	commitKey: TaskCommitKey;
+	commitKey?: TaskCommitKey;
 	/**
 	 * Called when a keystroke ended the edit, after the value has been handed to
 	 * `onChange`. `next` is true only for the commit keystroke, which asks for
-	 * another task to follow; Escape and Cmd/Ctrl end the edit where it is.
+	 * another line to follow; Escape and Cmd/Ctrl end the edit where it is.
 	 *
 	 * A caret that leaves the field for something else calls `onChange` and
 	 * nothing here: wandering off is not a decision about what comes next.
@@ -29,13 +35,14 @@ export interface InlineEditorOptions {
  * text, leaving the field commits the current value, and the two Enter
  * keystrokes split between committing and starting a new line.
  *
- * A task is usually one line, so committing on Enter is what keeps a column of
- * them quick to fill in; a task may also run over several lines, so the other
- * Enter — Shift+Enter, unless the user has swapped them — starts one. Cmd/Ctrl
- * commits in either case, which keeps a commit from ever being out of reach.
+ * A line usually holds one line of text, so committing on Enter is what keeps a
+ * list of them quick to fill in; one may also run over several lines, so the
+ * other Enter — Shift+Enter, unless the user has swapped them — starts a new
+ * one. Cmd/Ctrl commits in either case, which keeps a commit from ever being out
+ * of reach.
  *
  * Committing is also how the caller learns the edit is over, and which of the
- * two ways out it took: the commit keystroke carries on to the next task, while
+ * two ways out it took: the commit keystroke carries on to the next line, while
  * Escape and Cmd/Ctrl stop here. The field itself has no opinion about what
  * follows it — it only says which keystroke was pressed.
  */
@@ -44,6 +51,7 @@ export function registerInlineEditor(
 	onChange: (value: string) => void,
 	options: InlineEditorOptions,
 ): void {
+	const commitKey = options.commitKey ?? 'enter';
 	let lastValue = element.textContent ?? '';
 
 	const commit = (): void => {
@@ -56,15 +64,15 @@ export function registerInlineEditor(
 
 	element.addEventListener('keydown', (event) => {
 		// An Enter that picks a candidate in an input method belongs to the input
-		// method, not to the task: committing or breaking the line while a
-		// candidate list is open would cut a word being typed in half.
+		// method, not to the line: committing or breaking it while a candidate
+		// list is open would cut a word being typed in half.
 		if (event.isComposing) {
 			return;
 		}
 
 		if (event.key === 'Enter') {
 			const modifier = event.metaKey || event.ctrlKey;
-			const commits = modifier || event.shiftKey === (options.commitKey === 'shiftEnter');
+			const commits = modifier || event.shiftKey === (commitKey === 'shiftEnter');
 			event.preventDefault();
 			if (commits) {
 				commit();
@@ -77,7 +85,7 @@ export function registerInlineEditor(
 			}
 			// The break is inserted as a newline character rather than left to the
 			// browser: `plaintext-only` may produce either a newline or a `<br>`,
-			// and the text a task holds has to be one thing.
+			// and the text a line holds has to be one thing.
 			insertText(element, '\n');
 			return;
 		}
@@ -95,9 +103,10 @@ export function registerInlineEditor(
 	element.addEventListener('paste', (event) => {
 		event.preventDefault();
 		const text = event.clipboardData?.getData('text/plain') ?? '';
-		// A pasted line break is part of the task rather than a second task, so
-		// the text goes in as it came — but without the blank lines a task cannot
-		// hold: dropped here rather than written out and lost on the next read.
+		// A pasted line break is part of the line's own text rather than a second
+		// one, so it goes in as it came — but without the blank lines the line
+		// cannot hold: dropped here rather than written out and lost on the next
+		// read, which would make the board and the file disagree.
 		insertText(element, normalizeTaskText(text));
 	});
 
