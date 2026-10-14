@@ -1,6 +1,5 @@
 import { ItemView, Menu, moment, setIcon } from 'obsidian';
 import {
-	QUADRANTS,
 	REVIEW_SECTIONS,
 	REVIEW_SECTION_LETTERS,
 	VIEW_TYPE_WEEKLY_SCHEDULE,
@@ -9,7 +8,7 @@ import {
 import { formatWeekLabel } from '../i18n/format';
 import {
 	dayLabel,
-	quadrantParts,
+	getLocale,
 	reviewQuestion,
 	reviewStepName,
 	syncLocale,
@@ -18,6 +17,7 @@ import {
 } from '../i18n';
 import { hasTaskText, normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
+import { slotHeading } from '../slots';
 import {
 	dateKey,
 	isSameDay,
@@ -918,19 +918,30 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	private renderQuadrant(parent: HTMLElement, quadrant: Quadrant): void {
-		const definition = QUADRANTS.find((item) => item.id === quadrant.id);
+		const layout = this.plugin.slotLayout();
+		const slot = layout.slotById(quadrant.id);
+		// The colour is the cell's own, by position in the palette rather than by
+		// id: an id is chosen by the user and no stylesheet can be written for a
+		// word it has never seen. `data-slot-id` carries the id for the tests and
+		// for anyone looking at the DOM.
 		const cell = parent.createDiv({
-			cls: `weekly-schedule-cell weekly-schedule-cell-${quadrant.id}`,
+			cls: slot
+				? `weekly-schedule-cell weekly-schedule-cell-tone-${slot.tone}`
+				: 'weekly-schedule-cell',
+			attr: { 'data-slot-id': quadrant.id },
 		});
 
 		const header = cell.createDiv({ cls: 'weekly-schedule-cell-header' });
-		if (definition) {
-			// The two halves of the priority, each styled as its own accent.
-			const [importance, urgency] = quadrantParts(definition.important, definition.urgent);
-			header.createSpan({ cls: 'weekly-schedule-cell-label', text: importance });
-			header.createSpan({ cls: 'weekly-schedule-cell-sep', text: '·' });
-			header.createSpan({ cls: 'weekly-schedule-cell-label', text: urgency });
-		}
+		// One name rather than the two halves of a priority, because a cell is
+		// whatever the user calls it. A name they typed reads the same in every
+		// language; a cell they left alone keeps the plugin's own wording for one
+		// of its quadrants, read in the *interface* language, because this is the
+		// board and not the file; a cell they added and have not named yet shows
+		// the id it is written under.
+		header.createSpan({
+			cls: 'weekly-schedule-cell-label',
+			text: slotHeading(layout, quadrant.id, getLocale()),
+		});
 
 		// An empty cell stays empty: the add row below already says the cell can
 		// take a task, and repeating a placeholder in all 28 cells is noise.

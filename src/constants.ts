@@ -61,15 +61,6 @@ export const BUILT_IN_SLOTS: readonly BuiltInSlot[] = [
 export const DAY_IDS: readonly DayId[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 /**
- * Aliases for the code that still reads the flags to compose a two-part label
- * (the board's cell header, the carry-over popup). They are the same objects,
- * so nothing can drift; those call sites print a cell's name instead once the
- * layout is threaded through, and then these two go away.
- */
-export const QUADRANTS: readonly BuiltInSlot[] = BUILT_IN_SLOTS;
-export const QUADRANT_IDS: readonly QuadrantId[] = BUILT_IN_SLOTS.map((slot) => slot.id);
-
-/**
  * The layout every vault starts with: the four built-in cells, none renamed.
  *
  * A cell's name is `null` rather than the wording it shows, and that is the

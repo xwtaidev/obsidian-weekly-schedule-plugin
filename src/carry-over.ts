@@ -1,4 +1,4 @@
-import { DAY_IDS, QUADRANT_IDS } from './constants';
+import { DAY_IDS } from './constants';
 import { SUPPORTED_LOCALES, templateFor } from './i18n';
 import { createTaskId } from './utils/helpers';
 import type { Locale } from './i18n';
@@ -307,12 +307,16 @@ export function planDayCarryOver(
 	let blank = 0;
 	let alreadyThere = 0;
 
-	for (const quadrant of QUADRANT_IDS) {
-		const source = cellAt(schedule, from, quadrant);
-		const present = new Set((cellAt(schedule, to, quadrant)?.tasks ?? []).map(coreTextOf));
+	// The cells of the day the work comes from, which is the day both sides of
+	// this are about: a week read through one layout has the same cells on every
+	// day, so walking the source's own cells reaches the target's by the same
+	// id, and walking the four built-ins instead would leave the work of a cell
+	// the user added with nowhere to go.
+	for (const quadrant of schedule.days.find((day) => day.id === from)?.quadrants ?? []) {
+		const present = new Set((cellAt(schedule, to, quadrant.id)?.tasks ?? []).map(coreTextOf));
 		const seen = new Set<string>();
 
-		for (const task of source?.tasks ?? []) {
+		for (const task of quadrant.tasks) {
 			if (task.done) {
 				continue;
 			}
@@ -332,7 +336,7 @@ export function planDayCarryOver(
 				alreadyThere += 1;
 				continue;
 			}
-			moves.push({ quadrant, task });
+			moves.push({ quadrant: quadrant.id, task });
 		}
 	}
 

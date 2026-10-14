@@ -11,24 +11,41 @@ leaves over — nine members, a full 3x3.
 */
 
 /*
-The palette is declared on the two scopes that draw a quadrant in colour: the
-board, and the carry-over dialog whose tag names the cell a task will land in.
-It is deliberately not on `:root` — another plugin's `--ws-*` would collide with
-it — so a new surface that colours a quadrant has to be added here.
+The palette is declared on the two scopes that draw a cell in colour: the board,
+and the carry-over dialog whose tag names the cell a task will land in. It is
+deliberately not on `:root` — another plugin's `--ws-*` would collide with it —
+so a new surface that colours a cell has to be added here.
+
+Eight tones, because that is how many cells a layout may hold. The first four
+are the four quadrants the plugin shipped with, unchanged to the byte: a vault
+that configures nothing has to look exactly as it did. The second four were
+solved the same way, each in a hue the first four leave free.
+
+Each tone has two tiers so both stay legible: `-rail` draws the 2px margin bar
+(non-text, needs 3:1) and `-label` colours the 11px name (text, needs 4.5:1).
+The rail is the hue itself, and each label tier is that hue nudged toward the
+background until it clears 4.5:1 — toward black on a light background, toward
+white on a dark one. The light values were solved against #ffffff and the dark
+against #1e1e1e, where Obsidian's own `--background-primary` sits in each.
 */
 .weekly-schedule-container,
 .weekly-schedule-carry-modal {
-	/* Quadrant colour has two tiers so both stay legible: `-rail` draws the 2px
-	   margin bar (non-text, needs 3:1) and `-label` colours the 11px text
-	   (needs 4.5:1). These light-theme values were solved against #ffffff. */
-	--ws-q1-rail: #b6575f;
-	--ws-q2-rail: #8a6dbb;
-	--ws-q3-rail: #4f81b8;
-	--ws-q4-rail: #7d8188;
-	--ws-q1-label: #b6575f;
-	--ws-q2-label: #8469b4;
-	--ws-q3-label: #4a79ad;
-	--ws-q4-label: #73777d;
+	--ws-tone-0-rail: #b6575f;
+	--ws-tone-1-rail: #8a6dbb;
+	--ws-tone-2-rail: #4f81b8;
+	--ws-tone-3-rail: #7d8188;
+	--ws-tone-4-rail: #a8701f;
+	--ws-tone-5-rail: #2f8b84;
+	--ws-tone-6-rail: #b0508c;
+	--ws-tone-7-rail: #5f8a34;
+	--ws-tone-0-label: #b6575f;
+	--ws-tone-1-label: #8469b4;
+	--ws-tone-2-label: #4a79ad;
+	--ws-tone-3-label: #73777d;
+	--ws-tone-4-label: #a06b1e;
+	--ws-tone-5-label: #2c837d;
+	--ws-tone-6-label: #b0508c;
+	--ws-tone-7-label: #598231;
 }
 
 /* The board's own layout, which nothing outside it wants: the dialog borrows
@@ -48,17 +65,18 @@ it — so a new surface that colours a quadrant has to be added here.
 }
 
 /* Solved against #1e1e1e; the label tier is blended toward white. Obsidian
-   puts `.theme-dark` on the body, which still matches this descendant. */
+   puts `.theme-dark` on the body, which still matches this descendant. The
+   rails are the hues themselves, as they are in light theme. */
 .theme-dark .weekly-schedule-container,
 .theme-dark .weekly-schedule-carry-modal {
-	--ws-q1-rail: #b6575f;
-	--ws-q2-rail: #8a6dbb;
-	--ws-q3-rail: #4f81b8;
-	--ws-q4-rail: #7d8188;
-	--ws-q1-label: #c06e75;
-	--ws-q2-label: #9378c0;
-	--ws-q3-label: #5a89bc;
-	--ws-q4-label: #82858c;
+	--ws-tone-0-label: #c06e75;
+	--ws-tone-1-label: #9378c0;
+	--ws-tone-2-label: #5a89bc;
+	--ws-tone-3-label: #82858c;
+	--ws-tone-4-label: #af7b30;
+	--ws-tone-5-label: #3b928b;
+	--ws-tone-6-label: #bc6a9d;
+	--ws-tone-7-label: #699140;
 }
 
 /* The year overview shares the toolbar and the leaf rules above, but none of
@@ -310,7 +328,7 @@ button.weekly-schedule-day-carry:focus-visible {
 	flex-direction: column;
 }
 
-/* All four quadrants are always present and in a fixed order, so a cell's
+/* Every cell a day has is always present and in the layout's order, so a cell's
    position is stable even when it is empty. */
 .weekly-schedule-cell {
 	display: flex;
@@ -320,31 +338,60 @@ button.weekly-schedule-day-carry:focus-visible {
 	margin-top: 14px;
 }
 
-/* The one place a quadrant is mapped to its colours. A cell wears it, and so
-   does the tag that names a cell in the carry-over dialog — the dialog draws
-   the same words as a cell heading, so it reads them in the same colour. */
-.weekly-schedule-cell-q1,
-.weekly-schedule-carry-tag-q1 {
-	--ws-accent: var(--ws-q1-rail);
-	--ws-accent-label: var(--ws-q1-label);
+/* The one place a tone is mapped to its colours. A cell wears it, and so does
+   the tag that names a cell in the carry-over dialog — the dialog draws the
+   same words as a cell heading, so it reads them in the same colour.
+
+   By number rather than by cell id, and that is the point: an id is the user's,
+   and a stylesheet cannot be written for a word it has never seen. A cell's
+   tone is its position in the palette, which is the four built-ins' order for
+   the four built-ins — so the board's colours do not move. */
+.weekly-schedule-cell-tone-0,
+.weekly-schedule-carry-tag-tone-0 {
+	--ws-accent: var(--ws-tone-0-rail);
+	--ws-accent-label: var(--ws-tone-0-label);
 }
 
-.weekly-schedule-cell-q2,
-.weekly-schedule-carry-tag-q2 {
-	--ws-accent: var(--ws-q2-rail);
-	--ws-accent-label: var(--ws-q2-label);
+.weekly-schedule-cell-tone-1,
+.weekly-schedule-carry-tag-tone-1 {
+	--ws-accent: var(--ws-tone-1-rail);
+	--ws-accent-label: var(--ws-tone-1-label);
 }
 
-.weekly-schedule-cell-q3,
-.weekly-schedule-carry-tag-q3 {
-	--ws-accent: var(--ws-q3-rail);
-	--ws-accent-label: var(--ws-q3-label);
+.weekly-schedule-cell-tone-2,
+.weekly-schedule-carry-tag-tone-2 {
+	--ws-accent: var(--ws-tone-2-rail);
+	--ws-accent-label: var(--ws-tone-2-label);
 }
 
-.weekly-schedule-cell-q4,
-.weekly-schedule-carry-tag-q4 {
-	--ws-accent: var(--ws-q4-rail);
-	--ws-accent-label: var(--ws-q4-label);
+.weekly-schedule-cell-tone-3,
+.weekly-schedule-carry-tag-tone-3 {
+	--ws-accent: var(--ws-tone-3-rail);
+	--ws-accent-label: var(--ws-tone-3-label);
+}
+
+.weekly-schedule-cell-tone-4,
+.weekly-schedule-carry-tag-tone-4 {
+	--ws-accent: var(--ws-tone-4-rail);
+	--ws-accent-label: var(--ws-tone-4-label);
+}
+
+.weekly-schedule-cell-tone-5,
+.weekly-schedule-carry-tag-tone-5 {
+	--ws-accent: var(--ws-tone-5-rail);
+	--ws-accent-label: var(--ws-tone-5-label);
+}
+
+.weekly-schedule-cell-tone-6,
+.weekly-schedule-carry-tag-tone-6 {
+	--ws-accent: var(--ws-tone-6-rail);
+	--ws-accent-label: var(--ws-tone-6-label);
+}
+
+.weekly-schedule-cell-tone-7,
+.weekly-schedule-carry-tag-tone-7 {
+	--ws-accent: var(--ws-tone-7-rail);
+	--ws-accent-label: var(--ws-tone-7-label);
 }
 
 .weekly-schedule-cell-header {
@@ -359,10 +406,6 @@ button.weekly-schedule-day-carry:focus-visible {
 	color: var(--ws-accent-label);
 	font-weight: 600;
 	white-space: nowrap;
-}
-
-.weekly-schedule-cell-sep {
-	color: var(--text-faint);
 }
 
 /* ---------- Tasks ---------- */
@@ -1209,18 +1252,13 @@ button.weekly-schedule-review-header:focus-visible {
 	white-space: nowrap;
 }
 
-/* The two halves of the priority, in the colour of the cell they are going to —
-   the same pairing the board's cell heading draws, so the tag needs no reading
-   to say which cell a row belongs to. The colour comes from the tag's own
-   quadrant class, mapped above with the cells'. */
+/* The cell the task lands in, in that cell's own colour — the same words the
+   board draws over that cell, so the tag needs no reading to say which cell a
+   row belongs to. The colour comes from the tag's own tone class, mapped above
+   with the cells'. */
 .weekly-schedule-carry-tag {
 	color: var(--ws-accent-label);
 	font-weight: 600;
-}
-
-.weekly-schedule-carry-tag-sep {
-	color: var(--text-faint);
-	font-weight: 400;
 }
 
 .weekly-schedule-carry-flag {

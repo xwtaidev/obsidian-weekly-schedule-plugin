@@ -1,8 +1,9 @@
 import { Modal } from 'obsidian';
-import { QUADRANTS } from '../constants';
-import { QUADRANT_SEPARATOR, dayLabel, quadrantParts, syncLocale, t, tp } from '../i18n';
+import { dayLabel, getLocale, syncLocale, t, tp } from '../i18n';
+import { slotHeading } from '../slots';
 import type { App } from 'obsidian';
 import type { CarryOverItem } from '../carry-over';
+import type { SlotLayout } from '../slots';
 import type { DayId } from '../types';
 
 export interface CarryOverModalOptions {
@@ -12,6 +13,12 @@ export interface CarryOverModalOptions {
 	to: string;
 	/** What the previous week still has to offer, in board order. */
 	items: readonly CarryOverItem[];
+	/**
+	 * The cells of the week the work lands in, so a row can name the cell it
+	 * will land in the way the board names it. Read when the dialog opens, like
+	 * everything else it draws.
+	 */
+	layout: SlotLayout;
 }
 
 /**
@@ -101,20 +108,17 @@ export class CarryOverModal extends Modal {
 
 		row.createSpan({ cls: 'weekly-schedule-carry-text', text: item.text });
 
-		const definition = QUADRANTS.find((entry) => entry.id === item.quadrant);
-		if (definition) {
+		const slot = this.options.layout.slotById(item.quadrant);
+		if (slot) {
 			// The cell the task will land in, since that is the one thing about
 			// the move that cannot be read off the task itself. It is drawn the
-			// way the board draws that cell's heading — the same two words in
-			// the same quadrant colour — so which cell a row belongs to is
-			// legible before the words are read.
-			const [importance, urgency] = quadrantParts(definition.important, definition.urgent);
-			const tag = row.createSpan({
-				cls: `weekly-schedule-carry-tag weekly-schedule-carry-tag-${item.quadrant}`,
+			// way the board draws that cell's heading — the same words in the
+			// same colour — so which cell a row belongs to is legible before the
+			// words are read.
+			row.createSpan({
+				cls: `weekly-schedule-carry-tag weekly-schedule-carry-tag-tone-${slot.tone}`,
+				text: slotHeading(this.options.layout, slot.id, getLocale()),
 			});
-			tag.createSpan({ text: importance });
-			tag.createSpan({ cls: 'weekly-schedule-carry-tag-sep', text: QUADRANT_SEPARATOR });
-			tag.createSpan({ text: urgency });
 		}
 
 		if (item.alreadyThere) {

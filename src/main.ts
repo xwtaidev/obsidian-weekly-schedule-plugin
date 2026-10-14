@@ -355,9 +355,16 @@ export default class WeeklySchedulePlugin extends Plugin {
 			from: weekKey(this.momentOf(sourceStart)),
 			to: weekKey(this.momentOf(targetStart)),
 		};
-		new CarryOverModal(this.app, { ...weeks, items: plan.items }, (chosen) => {
-			void this.applyCarryOverChoice(chosen, weeks, { source: sourceStart, target: targetStart });
-		}).open();
+		new CarryOverModal(
+			this.app,
+			{ ...weeks, items: plan.items, layout: this.slotLayout() },
+			(chosen) => {
+				void this.applyCarryOverChoice(chosen, weeks, {
+					source: sourceStart,
+					target: targetStart,
+				});
+			},
+		).open();
 	}
 
 	/**

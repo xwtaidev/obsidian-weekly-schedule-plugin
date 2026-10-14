@@ -37,7 +37,7 @@ import {
 	readMarkedText,
 } from '../../src/carry-over';
 import { parseSchedule, serializeSchedule } from '../../src/markdown';
-import { DEFAULT_SLOT_LAYOUT } from '../../src/slots';
+import { DEFAULT_SLOT_LAYOUT, buildSlotLayout } from '../../src/slots';
 import { formatShortDate } from '../../src/i18n/format';
 import { syncLocale, t, tp } from '../../src/i18n/index';
 import { dateKey, dayIdOf, shiftWeek, weekFilePath, weekKey } from '../../src/utils/date';
@@ -74,8 +74,9 @@ function use(language: string): void {
 
 /**
  * Reading and writing with the layout a vault starts with — the four quadrants,
- * none renamed. Every week these checks use is such a week; carrying work
- * between cells the user configured is what `npm run check:slots` is about.
+ * none renamed. Almost every week these checks use is such a week; the layout
+ * itself is `npm run check:slots`'s subject, and only the two sections that are
+ * about it build one of their own.
  */
 function read(content: string, weekStart: string, path: string): WeekSchedule {
 	return parseSchedule(content, weekStart, path, DEFAULT_SLOT_LAYOUT);
@@ -471,6 +472,78 @@ applyDayCarryOver(multiDays, planDayCarryOver(multiDays, 'mon', 'tue'));
 check('a multi-line task moves as one task, words untouched', tasks(multiDays, 'tue', 'q1'), [
 	' :回应监管问询\n先补材料清单',
 ]);
+
+// --- handing work over when the cells are the user's own --------------------
+// A day hands its unfinished work to the next by walking the cells of the day it
+// comes from. That used to be the four built-ins, which is the same thing as
+// long as nobody adds or removes a cell — and stops being it the moment they do:
+// a cell the user added would have had its work left behind on the day that is
+// over, and nothing would have said so.
+
+const ownLayout = buildSlotLayout(
+	[
+		{ id: 'q1', name: '深度工作', tone: 0 },
+		{ id: 's1', name: '杂事', tone: 4 },
+	],
+	{ q2: 'q1', q3: 'q1', q4: 's1' },
+);
+const ownWeek = parseSchedule(
+	'# 2026-W40\n\n## 周一\n\n### 深度工作\n- [ ] 回应监管问询\n\n### 杂事\n- [ ] 打印材料\n\n## 周二\n\n### 深度工作\n- [ ] 修复客户端崩溃\n',
+	TARGET_START,
+	TARGET_PATH,
+	ownLayout,
+);
+const ownPlan = planDayCarryOver(ownWeek, 'mon', 'tue');
+check(
+	'a day hands over the work of every cell it has, including one the user added',
+	ownPlan.moves.map((move) => `${move.quadrant}:${move.task.text}`),
+	['q1:回应监管问询', 's1:打印材料'],
+);
+check(
+	'... each into the cell of the next day that answers to the same id',
+	applyDayCarryOver(ownWeek, ownPlan) === 2 &&
+		ownWeek.days
+			.filter((day) => day.id === 'tue')
+			.flatMap((day) => day.quadrants.map((quadrant) => quadrant.tasks.map((task) => task.text)))
+			.join('|'),
+	'修复客户端崩溃,回应监管问询|打印材料',
+);
+
+// One cell is the case the whole feature is for, and the one where a heading
+// that stopped resolving would take its tasks off the board entirely.
+const oneLayout = buildSlotLayout(
+	[{ id: 'q1', name: null, tone: 0 }],
+	{ q2: 'q1', q3: 'q1', q4: 'q1' },
+);
+const oneWeek = parseSchedule(
+	'# 2026-W40\n\n## 周一\n\n### 重要 · 紧急\n- [ ] A\n\n### 不重要 · 紧急\n- [ ] B\n\n### 重要 · 不紧急\n- [ ] C\n\n## 周二\n\n### 重要 · 紧急\n- [ ] D\n',
+	TARGET_START,
+	TARGET_PATH,
+	oneLayout,
+);
+check(
+	'a week of one cell still holds every task of a four-cell week, in order',
+	oneWeek.days.find((day) => day.id === 'mon')?.quadrants[0]?.tasks.map((task) => task.text),
+	['A', 'B', 'C'],
+);
+check(
+	'... so a day hands all of them over',
+	planDayCarryOver(oneWeek, 'mon', 'tue').moves.map((move) => move.task.text),
+	['A', 'B', 'C'],
+);
+check(
+	'... into the only cell there is',
+	planDayCarryOver(oneWeek, 'mon', 'tue').moves.map((move) => move.quadrant),
+	['q1', 'q1', 'q1'],
+);
+check(
+	'... and the day that is over keeps nothing',
+	[
+		applyDayCarryOver(oneWeek, planDayCarryOver(oneWeek, 'mon', 'tue')),
+		oneWeek.days.find((day) => day.id === 'mon')?.quadrants[0]?.tasks.length,
+	],
+	[3, 0],
+);
 
 // --- what the dialog and the notices say -----------------------------------
 use('en');

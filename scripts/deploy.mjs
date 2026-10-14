@@ -74,7 +74,7 @@ const styles = readFileSync(join(target, 'styles.css'), 'utf8');
 const markers = [
 	'--ws-heat-0',
 	'aspect-ratio',
-	'weekly-schedule-carry-tag-q1',
+	'weekly-schedule-carry-tag-tone-0',
 	'weekly-schedule-day-carry',
 ];
 const missing = markers.filter((marker) => !styles.includes(marker));
