@@ -1189,7 +1189,11 @@ button.weekly-schedule-review-header:focus-visible {
 	width: 560px;
 }
 
-.weekly-schedule-carry-desc {
+/* The line under a dialog's title. The carry-over dialog and the two the
+   settings tab opens say the same kind of thing in the same place, so they are
+   one rule rather than two copies of it. */
+.weekly-schedule-carry-desc,
+.weekly-schedule-slot-desc {
 	margin: -4px 0 16px;
 	font-size: 12px;
 	color: var(--text-muted);
@@ -1269,6 +1273,28 @@ button.weekly-schedule-review-header:focus-visible {
 	margin-top: 16px;
 	font-size: 11px;
 	color: var(--text-muted);
+}
+
+/* ---------- Settings: the cells a day has ---------- */
+
+/* Two rules, and neither of them reaches for the cell palette: the settings tab
+   is not the board, and which colour a cell is drawn in is the board's business.
+   What a row is, is a name field and three buttons. */
+.weekly-schedule-slot-row input[type='text'] {
+	width: 16em;
+}
+
+/* The one line that says what is wrong with the cells. It is drawn even when
+   there is nothing to say, so that an edit which is refused has somewhere to be
+   answered without rebuilding the fields above it — and takes no room then,
+   rather than leaving a gap no one can account for. */
+.weekly-schedule-slot-error {
+	margin: -0.4em 0 1em;
+	color: var(--text-error);
+}
+
+.weekly-schedule-slot-error:empty {
+	display: none;
 }
 
 /* ---------- Narrow panes ---------- */

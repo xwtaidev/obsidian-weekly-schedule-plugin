@@ -8,9 +8,12 @@ import {
 import { getLocale, getLocaleRevision, syncLocale, t, tp } from './i18n';
 import { WeeklyScheduleSettingTab, normalizeSettings } from './settings';
 import {
+	applySlotAlignment,
 	applyYearFolders,
 	describeYearFolderMove,
+	notifySlotAlignmentResult,
 	notifyYearFolderResult,
+	planSlotAlignment,
 	planYearFolders,
 } from './migrate';
 import {
@@ -24,6 +27,7 @@ import {
 import { ScheduleStore } from './store';
 import { DEFAULT_SLOT_LAYOUT, buildSlotLayout } from './slots';
 import { CarryOverModal } from './ui/carry-over-modal';
+import { SlotAlignModal } from './ui/slot-align-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
 import { formatShortDate } from './i18n/format';
@@ -31,6 +35,7 @@ import { dateKey, dayIdOf, shiftWeek, startOfWeek, weekFilePath, weekKey } from 
 import { watchDayChange } from './utils/day-watch';
 import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
 import type { CarryOverItem } from './carry-over';
+import type { SlotAlignment } from './migrate';
 import type { TranslationKey } from './i18n';
 import type { WeeklyScheduleSettings } from './settings';
 import type { Moment } from './utils/date';
@@ -555,6 +560,57 @@ export default class WeeklySchedulePlugin extends Plugin {
 		await this.saveSettings();
 		await view?.refresh();
 		await this.yearViewOf()?.refresh();
+	}
+
+	/**
+	 * Brings the weeks already written up to date with the cells.
+	 *
+	 * Offered rather than needed. A week written before a cell was renamed or
+	 * removed goes on reading correctly, because the wording it uses resolves
+	 * through the layout either way — so nothing goes wrong if this is never run.
+	 * What it is for is making a vault say one thing, and, in time, letting a
+	 * week be read by a version that no longer knows the older wordings.
+	 *
+	 * The count comes first, and the dialog is the confirmation: how much of the
+	 * vault this touches is not something a button can say for itself, and the
+	 * same dialog is what the settings tab offers the moment a cell is renamed.
+	 *
+	 * Public because the settings tab offers it as a button.
+	 */
+	async alignSlotsAcrossWeeks(): Promise<void> {
+		// What the board holds is committed, and the weeks it has pending are
+		// written, before any of them is read: a week written after this pass
+		// would put the headings it was read with back on disk.
+		await this.viewOf()?.commitPendingEdits();
+		await this.store.invalidate();
+
+		const layout = this.slotLayout();
+		const plan = await planSlotAlignment(this.app.vault, this.settings.folder, layout);
+		if (plan.length === 0) {
+			new Notice(t('migrate.slots.none'));
+			return;
+		}
+
+		new SlotAlignModal(this.app, plan.length, () => void this.alignWeeks(plan, layout)).open();
+	}
+
+	/**
+	 * Writes the planned weeks, and makes what is on screen agree with them.
+	 *
+	 * The layout is the one the plan was made with, passed through rather than
+	 * read again: the dialog can sit open while a cell is renamed in another
+	 * pane, and a plan made with one layout and written with another is a week
+	 * whose headings no longer say what it holds.
+	 */
+	private async alignWeeks(
+		plan: readonly SlotAlignment[],
+		layout: SlotLayout,
+	): Promise<void> {
+		const { files, failed } = await applySlotAlignment(this.app.vault, plan, layout);
+		await this.store.invalidate();
+		await this.viewOf()?.refresh();
+		await this.yearViewOf()?.refresh();
+		notifySlotAlignmentResult(files, failed);
 	}
 
 	/**

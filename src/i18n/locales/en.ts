@@ -137,6 +137,52 @@ export const en = {
 		'Move week files that sit directly in the schedule folder into a folder per year.',
 	'settings.yearFolders.button': 'Move files',
 
+	// The cells a day has. This is the one setting that decides what a week's
+	// *file* looks like, so it says what a cell is and what happens to the work
+	// in one when it is removed, and leaves the rest to the board.
+	'settings.slots.name': 'The cells a day has',
+	'settings.slots.desc':
+		'A cell is the heading above a group of tasks in the week file. Name them, reorder them, add or remove them — a day holds between one and eight.',
+	'settings.slots.newName': 'Cell {count}',
+	'settings.slots.usingDefault': 'Called {name} until you name it yourself',
+	'settings.slots.add': 'Add a cell',
+	// One wording per code `validateSlots` can answer with, so a code that is
+	// added without a sentence for it fails to compile rather than showing
+	// nothing where an explanation should be.
+	'settings.slots.error.limitMin': 'A day has to keep at least one cell.',
+	'settings.slots.error.limitMax': 'A day holds at most {max} cells.',
+	'settings.slots.error.duplicateId':
+		'Two cells share an internal key, so one of them could never be reached.',
+	'settings.slots.error.unknown': 'A cell has a colour the palette does not have.',
+	'settings.slots.error.dangling':
+		'A removed cell points at a cell that is neither here nor on file.',
+	'settings.slots.error.cycle':
+		'Two removed cells point at each other, so neither has anywhere to go.',
+	'settings.slots.error.empty': 'A cell you added has no name yet, so there is nothing to call it.',
+	'settings.slots.error.tooLong': 'A cell name is at most {nameMax} characters.',
+	'settings.slots.error.invalid':
+		'A cell name cannot hold # or a line break, or start with - > | or a number.',
+	'settings.slots.error.reserved':
+		"That name is already a day, a step of the review, or one of the plugin's own cells.",
+	'settings.slots.error.duplicate':
+		'Two cells have the same name, so a week could not tell them apart.',
+	'settings.slots.merge.title': 'Move the work of {name} into another cell',
+	'settings.slots.merge.desc':
+		'Nothing is lost. The tasks stay in the weeks they are in and go on being read as the cell that takes them over, because the wording of a removed cell is kept on file for ever.',
+	'settings.slots.merge.choice': 'Move it into',
+	'settings.slots.merge.confirm': 'Remove the cell',
+	'settings.slots.align.name': 'Weeks you have already written',
+	'settings.slots.align.desc':
+		'A week written before the cells changed goes on reading correctly, and its headings are the older wording. Renaming them makes the whole vault say one thing; it changes nothing about what a week holds.',
+	'settings.slots.align.button': 'Bring them up to date',
+	'settings.slots.align.title': 'Bring older weeks up to date?',
+	'settings.slots.align.body':
+		'The headings of {count} week file still use the older wording.|The headings of {count} week files still use the older wording.',
+	'settings.slots.align.confirm': 'Bring them up to date',
+	'settings.slots.align.later': 'Not now',
+	// Shared by the two dialogs above; the carry-over dialog words its own.
+	'common.cancel': 'Cancel',
+
 	// Notices.
 	'migrate.alreadyGrouped': 'Weekly schedule: every week file is already in a year folder.',
 	'migrate.pendingFiles':
@@ -151,8 +197,6 @@ export const en = {
 	// the user has now. A week is never unreadable without this — the wordings
 	// it already uses go on resolving — so this is offered, not demanded.
 	'migrate.slots.none': 'Weekly schedule: every week already names its cells the way you do.',
-	'migrate.slots.pending':
-		'Weekly schedule: {count} week file still names its cells the old way.|Weekly schedule: {count} week files still name their cells the old way.',
 	'migrate.slots.changed':
 		'Weekly schedule: renamed the cells in {count} week file.|Weekly schedule: renamed the cells in {count} week files.',
 	'migrate.slots.partial':

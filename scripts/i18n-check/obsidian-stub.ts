@@ -38,6 +38,13 @@ export class Setting {
 	}
 }
 
+/** The base class a dialog extends. Never built here, for the same reason. */
+export class Modal {
+	constructor(_app: unknown) {
+		throw new Error('obsidian stub: a dialog cannot be built outside the app');
+	}
+}
+
 type StartUnit = 'day' | 'year' | 'isoWeek';
 
 class StubMoment {

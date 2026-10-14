@@ -33,9 +33,11 @@ import {
 import {
 	DEFAULT_SLOT_LAYOUT,
 	buildSlotLayout,
+	nextSlot,
 	nextSlotId,
 	normalizeHeading,
 	normalizeSlotConfig,
+	retireSlot,
 	slotHeading,
 	validateSlots,
 } from '../../src/slots';
@@ -353,6 +355,61 @@ check(
 	'adding a cell after the four built-ins gets a free id',
 	nextSlotId(DEFAULT_SLOTS, {}),
 	's1',
+);
+
+// --- the cell a user adds, and the one they remove --------------------------
+// Both are done by the settings tab, which is a page of fields and buttons and
+// cannot be checked without a page. What is checked here is the part that would
+// be wrong silently: the new cell's key, its colour, and its name not colliding
+// with a name already in use; and a removal leaving a record that still reads
+// every week written before it.
+
+const nameFor = (count: number): string => `格子 ${count}`;
+check(
+	'a cell added to the four built-ins is the fifth cell: new key, next colour',
+	nextSlot(DEFAULT_SLOTS, {}, nameFor),
+	{ id: 's1', name: '格子 5', tone: 4 },
+);
+check(
+	'... and a name already in use is stepped over rather than repeated',
+	nextSlot([cell('q1', '格子 5'), cell('q2'), cell('q3'), cell('q4')], {}, nameFor),
+	{ id: 's1', name: '格子 6', tone: 4 },
+);
+check(
+	'... and wording that never changes with the count stops rather than spinning',
+	validateSlots([cell('q1', '甲'), nextSlot([cell('q1', '甲')], {}, () => '甲')], {}),
+	['duplicate'],
+);
+check(
+	'a cell added to a layout of one is the second, in the second colour',
+	nextSlot([cell('q1')], { q2: 'q1' }, nameFor),
+	{ id: 's1', name: '格子 2', tone: 1 },
+);
+
+check(
+	'removing a cell points the removed one at whoever took the work over',
+	retireSlot({}, 'q3', 'q1'),
+	{ q3: 'q1' },
+);
+check(
+	'... and anything that already pointed at it is shortened to the same answer',
+	retireSlot({ q3: 'q1', q4: 'q1' }, 'q1', 'q2'),
+	{ q3: 'q2', q4: 'q2', q1: 'q2' },
+);
+check(
+	'... with a removal that has nothing to do with it left exactly as it was',
+	retireSlot({ q4: 'q1' }, 'q3', 'q1'),
+	{ q4: 'q1', q3: 'q1' },
+);
+check(
+	'... and a removal made this way is one the layout accepts',
+	validateSlots([cell('q1'), cell('q2')], retireSlot({ q3: 'q1', q4: 'q1' }, 'q1', 'q2')),
+	[],
+);
+check(
+	'... and every wording of a twice-removed cell still resolves, to the one that holds it',
+	layout([cell('q2')], retireSlot({ q3: 'q1', q4: 'q1' }, 'q1', 'q2')).heading('重要 · 不紧急')?.id,
+	'q2',
 );
 
 // --- reading and writing a whole week -------------------------------------

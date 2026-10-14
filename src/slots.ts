@@ -487,6 +487,71 @@ export function nextSlotId(slots: readonly Slot[], retired: RetiredSlots): strin
 	return `s${n}`;
 }
 
+/**
+ * The cell a user is adding.
+ *
+ * Three things are decided here, and each of them is a rule rather than a
+ * formality: the key is one no cell has ever had, because a removed one stays in
+ * the retirement record for ever and reusing it would file old weeks under the
+ * wrong cell; the colour is the one for the position the cell lands in, so a
+ * fifth cell is drawn in a colour of its own rather than the first one over
+ * again; and the name is worded by the caller — the settings tab, which is the
+ * only place that knows what to call a cell nobody has named — bumped until it
+ * is one nothing answers to, since two cells answering to one wording are two
+ * cells a week could not tell apart.
+ *
+ * The bumping is bounded, because the wording is out of this function's hands:
+ * one that did not change with the count would spin for ever. Running out of
+ * attempts is not a failure of its own — the name landed on is then one already
+ * in use, and `validateSlots` answers `duplicate`, which is a message where a
+ * hang would be a bug.
+ */
+export function nextSlot(
+	slots: readonly Slot[],
+	retired: RetiredSlots,
+	nameFor: (count: number) => string,
+): Slot {
+	const taken = new Set(slots.map((slot) => normalizeHeading(slot.name ?? '')));
+	let count = slots.length + 1;
+	// One name per cell is taken at the very most, so a wording that varies with
+	// the count is certain to be free within a step each.
+	const limit = count + taken.size + 1;
+	while (count < limit && taken.has(normalizeHeading(nameFor(count)))) {
+		count += 1;
+	}
+	return {
+		id: nextSlotId(slots, retired),
+		name: nameFor(count),
+		tone: slots.length % TONE_COUNT,
+	};
+}
+
+/**
+ * The record of removals once a cell has been removed into `target`.
+ *
+ * Two changes rather than one, and the second is the one worth writing down:
+ * the removed cell points at the cell that takes its work over, and *anything
+ * already pointing at the removed cell is pointed at that same cell instead*.
+ * Both resolve to the same place, but only the second keeps the chains short —
+ * a vault collects one of these per removal, and `q3 → q1 → q2` says no more
+ * than `q3 → q2` while costing every read an extra hop.
+ *
+ * Nothing is dropped: the wording of a cell removed long ago is the only thing
+ * that reads a week written back then.
+ */
+export function retireSlot(
+	retired: RetiredSlots,
+	id: string,
+	target: string,
+): Record<string, string> {
+	const next: Record<string, string> = {};
+	for (const [from, to] of Object.entries(retired)) {
+		next[from] = to === id ? target : to;
+	}
+	next[id] = target;
+	return next;
+}
+
 /** The cells a stored settings file describes, and where the removed ones went. */
 export interface SlotConfig {
 	slots: Slot[];

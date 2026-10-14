@@ -223,13 +223,6 @@ export async function applySlotAlignment(
 	return { files, failed };
 }
 
-export function describeSlotAlignment(plan: readonly SlotAlignment[]): string {
-	if (plan.length === 0) {
-		return t('migrate.slots.none');
-	}
-	return tp('migrate.slots.pending', plan.length);
-}
-
 export function notifySlotAlignmentResult(files: number, failed: number): void {
 	if (failed === 0) {
 		new Notice(tp('migrate.slots.changed', files));
