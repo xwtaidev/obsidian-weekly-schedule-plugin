@@ -1,12 +1,13 @@
 # Weekly Schedule
 
 Plan and review your week inside Obsidian. One board per week, every day split into
-four priority quadrants, and a whole year you can scan at a glance.
+priority cells you name yourself, and a whole year you can scan at a glance.
 
-![The weekly board: seven days across three rows, each with four priority quadrants](assets/board-dark.png)
+![The weekly board: seven days across three rows, each with four priority cells](assets/board-dark.png)
 
-Each day holds four cells — important and urgent, not important but urgent,
-important but not urgent, and neither. An empty cell offers an **Add a task**
+A day starts with four cells — important and urgent, not important but urgent,
+important but not urgent, and neither — and holds whatever you make of them: one to
+eight, each named by you. An empty cell offers an **Add a task**
 (**添加一个待办事项** in Chinese) button that gives it its first task and puts the
 cursor in it. Once the cell shows a task the button is gone: the way to the next
 one is `Enter` at the end of the one you are writing, and the new task appears
@@ -105,6 +106,33 @@ is in: on a Monday, yesterday is the previous week's Sunday, and nothing happens
 but a notice saying so — use the weekly move for that. The week moved within is the
 one today falls in, whatever week the board is showing.
 
+## Cells you choose
+
+Four quadrants are one way to divide a day, and a costly one to keep: deciding which
+of the four a task belongs in is often more work than the task. So the cells are
+yours. **Settings → Weekly schedule → The cells a day has** lists them in the order
+the board draws them, each with a field for its name and buttons to move it up or
+down, to remove it, and to add another — up to eight.
+
+A cell is not a container holding tasks. It is the `### ` heading above a group of
+them in the week's file, and the work under it belongs to the week. That is what
+makes removing one an ordinary thing to do: **nothing is lost.** The heading the
+removed cell was written under is kept on file for ever, pointed at whatever took
+its work over, so a week written last year still reads into the right cell today.
+The dialog asks which cell that should be.
+
+A rename works the same way. Weeks already written keep the wording they have and go
+on reading correctly; what changes is the heading the *next* week gets. Bringing the
+older ones into line is offered the moment a cell changes, and stays available
+afterwards as **Bring them up to date** in the same section. It rewrites the cell
+headings of every week in the folder — the tasks, the days and each week's review
+are left byte for byte.
+
+Colours come from the palette by position, and a cell keeps its colour when the
+cells are reordered. Eight is more than the board was drawn for, and a day of eight
+is taller than a day of four: a two-column board holding nothing measures 93px for
+one cell, 290px for four and 551px for eight.
+
 ## How tasks are stored
 
 Standard Markdown checkboxes, one file per week, grouped in a folder per ISO year:
@@ -134,11 +162,13 @@ weekly-schedule/
 - [ ] 整理书签
 ```
 
-Cells with no tasks are omitted, so the file stays short. Because it is ordinary
-Markdown, these tasks are searchable, readable by other task plugins, editable by
-hand, and safe to sync or version. The plugin keeps the file and the board in step:
-editing the file outside the board reloads it, and an unsaved edit in the board
-wins over the file rather than being discarded.
+Each `### ` heading is one of the day's cells, written the way that cell is named —
+which is why the same week in an English vault has English headings and a renamed
+cell has its own name in both. Cells with no tasks are omitted, so the file stays
+short. Because it is ordinary Markdown, these tasks are searchable, readable by
+other task plugins, editable by hand, and safe to sync or version. The plugin keeps
+the file and the board in step: editing the file outside the board reloads it, and
+an unsaved edit in the board wins over the file rather than being discarded.
 
 A task that runs over several lines is the checkbox line followed by the rest,
 indented two spaces — its own plain text, with no markup added. A blank line ends
@@ -182,14 +212,16 @@ is written as:
 - [ ] Tidy the bookmarks
 ```
 
-Day and priority headings are the only translated part of a file, and one rule
-follows from that: **a file keeps the language it was written in.** Switching
-Obsidian's language relabels the board, the year overview, the commands and the
-settings tab, but it never rewrites files you already have — opening an old week
-after the switch shows an English board over a Chinese file. A week with no file
-yet is created in the current language, so a vault can hold both without either
-failing to load: the plugin recognizes every heading in every language it ships,
-and a file written before the plugin was translated keeps parsing too.
+Day headings, and the wording of a cell nobody has renamed, are the only translated
+part of a file — a name you give a cell is a name in every language, so it is
+written identically whichever language Obsidian is in. One rule follows from those:
+**a file keeps the language it was written in.** Switching Obsidian's language
+relabels the board, the year overview, the commands and the settings tab, but it
+never rewrites files you already have — opening an old week after the switch shows
+an English board over a Chinese file. A week with no file yet is created in the
+current language, so a vault can hold both without either failing to load: the
+plugin recognizes every heading in every language it ships, and a file written
+before the plugin was translated keeps parsing too.
 
 To convert an existing file, edit its headings — the language of the week's first
 recognized heading decides the language the whole file is written back in.
@@ -226,6 +258,7 @@ npm run build      # type check + production build
 npm run lint       # ESLint with Obsidian-specific rules
 npm run check:i18n # verify the localization and file-heading rules
 npm run check:carry # verify the rules for carrying last week's work over
+npm run check:slots # verify the rules for the cells a day has
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
@@ -241,7 +274,7 @@ language, every language's headings still parse, and the dates, plurals and
 notices read correctly in both languages.
 
 `npm run check:carry` does the same for carrying unfinished work into the next
-week: only unfinished tasks are offered and each keeps its day and its quadrant,
+week: only unfinished tasks are offered and each keeps its day and its cell,
 the tasks that were carried are marked in the week they came from and nothing is
 taken out of it, a mark is never part of a task's words — so it neither travels
 into the next week nor turns one task into two — a task the target cell already
@@ -249,8 +282,21 @@ holds is not added again, and the week before a target is located the way the bo
 locates weeks, including across the ISO year boundary, where the source week can
 live in the previous year's folder. The same checks cover the move from one day to
 the next: the tasks leave the day that hands them over rather than being copied,
-they keep their quadrant, a finished or blank task is not moved, and the day before
+they keep their cell, a finished or blank task is not moved, and the day before
 a Monday is known to be out of reach.
+
+`npm run check:slots` holds the cells to the two promises the rest of the plugin
+depends on. A week read and written by the same layout comes back as the bytes it
+went out as, so saving an edit never rewrites a file nobody touched — which is the
+whole reason a vault that upgrades and configures nothing is left alone. And every
+heading any version has written still resolves to the cell it was written for,
+including the twelve wordings it used before these four stuck, in both languages,
+including a cell that has since been removed — the wording of a removed cell
+resolves to whatever took its work over, through any number of removals — and
+including a layout of one cell, which answers to every one of them at once. It also covers what a layout may say: two cells
+answering to one name, a name that would break the heading line, a removal pointing
+at nothing or looping are each refused with one code, and the whole-vault alignment
+rewrites cell headings and not one line besides.
 
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
@@ -263,9 +309,10 @@ src/
   settings.ts                    # Settings interface, defaults, settings tab
   store.ts                       # Reading/writing week files, caching, debounced saves
   markdown.ts                    # Markdown <-> board conversion
-  migrate.ts                     # Moving week files into year folders
+  slots.ts                       # The cells a day has, and where a removed one's work went
+  migrate.ts                     # Moving week files into year folders, and aligning cell headings
   carry-over.ts                  # Carrying unfinished work over: last week's, and yesterday's
-  constants.ts                   # View types, quadrants, days, defaults
+  constants.ts                   # View types, default cells, days, defaults
   types.ts                       # Data model
   i18n/
     index.ts                     # Language detection, t()/tp(), day and quadrant wording
@@ -277,6 +324,8 @@ src/
     weekly-schedule-view.ts      # The board
     weekly-schedule-year-view.ts # Year overview
     carry-over-modal.ts          # The dialog that picks what to carry over
+    slot-merge-modal.ts          # The dialog that asks where a removed cell's work goes
+    slot-align-modal.ts          # The dialog that offers to bring older weeks up to date
     inline-editor.ts             # Inline plain-text editing for task rows
   utils/
     date.ts                      # Week arithmetic and file naming
@@ -286,6 +335,7 @@ scripts/
   deploy.mjs                     # The npm run deploy helper
   i18n-check/                    # The npm run check:i18n helper
   carry-check/                   # The npm run check:carry helper
+  slot-check/                    # The npm run check:slots helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 
@@ -312,9 +362,11 @@ a translation that misses one. To add a language:
 3. Revisit the expectations in `scripts/i18n-check/checks.ts` — the fallback cases
    change as soon as a language is added — and run `npm run check:i18n`.
 
-Day and priority headings are composed from those same strings, which is why a
-translated file is written correctly without any extra work: `dayLabel()` and
-`quadrantParts()` produce both the cell header and the Markdown heading.
+Day headings, and the wording a cell nobody renamed is written under, are composed
+from those same strings, which is why a translated file is written correctly without
+any extra work: `dayLabel()` produces the day heading and the cell header, and
+`quadrantParts()` produces the wording of a cell the plugin names for itself. A cell
+you have renamed is written with your name in whatever language the file is in.
 
 ### Releasing
 
@@ -354,7 +406,7 @@ attached. Review the draft, then publish it — the tag and `manifest.json`'s
        "id": "weekly-schedule",
        "name": "Weekly Schedule",
        "author": "xwtaidev",
-       "description": "Plan and review your week inside Obsidian.",
+       "description": "Plan each week in one to eight priority cells you name yourself, stored as plain Markdown you can edit by hand.",
        "repo": "xwtaidev/obsidian-weekly-schedule-plugin"
    }
    ```
@@ -370,9 +422,9 @@ no network calls or telemetry, and that `minAppVersion` is honest. The
 
 The declarative settings API added in Obsidian 1.13 would put these options into
 Obsidian's settings search, but it would raise `minAppVersion` to 1.13 and shut out
-everyone on an older release. Two dropdowns do not justify that, so the tab uses
-the imperative `Setting` API and the lint rule asking for the declarative one
-reports a warning that is accepted on purpose.
+everyone on an older release. A folder, a week start, a keystroke and a list of
+cells do not justify that, so the tab uses the imperative `Setting` API and the lint
+rule asking for the declarative one reports a warning that is accepted on purpose.
 
 ## API documentation
 
