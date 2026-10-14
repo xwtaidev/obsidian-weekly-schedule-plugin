@@ -4,6 +4,7 @@ import { folderOf, parseWeekFileStem } from './utils/date';
 import { hasTaskText, parseSchedule, serializeSchedule } from './markdown';
 import { debounce } from './utils/helpers';
 import type { Vault } from 'obsidian';
+import type { SlotLayout } from './slots';
 import type { WeekSchedule } from './types';
 
 /**
@@ -75,6 +76,11 @@ export function countTasks(schedule: WeekSchedule): WeekStats {
  * Writes are debounced and tracked, so the resulting `modify` events are not
  * mistaken for outside edits, and a write that fails leaves the schedule in
  * memory untouched so the next change retries it.
+ *
+ * The layout is asked for rather than kept: the settings tab can change which
+ * cells a day has while a week is loaded, and every read and every write has to
+ * be made with the layout in force at that moment. A snapshot taken at
+ * construction would go on reading and writing a layout the user has left.
  */
 export class ScheduleStore {
 	private readonly cache = new Map<string, CacheEntry>();
@@ -83,7 +89,10 @@ export class ScheduleStore {
 		void this.persist(path);
 	}, SAVE_DEBOUNCE_MS);
 
-	constructor(private readonly vault: Vault) {}
+	constructor(
+		private readonly vault: Vault,
+		private readonly layout: () => SlotLayout,
+	) {}
 
 	async load(weekStart: string, path: string): Promise<WeekSchedule> {
 		const cached = this.cache.get(path);
@@ -92,7 +101,7 @@ export class ScheduleStore {
 		}
 
 		const content = await this.read(path);
-		const schedule = parseSchedule(content, weekStart, path);
+		const schedule = parseSchedule(content, weekStart, path, this.layout());
 		this.cache.set(path, { schedule, raw: content });
 		return schedule;
 	}
@@ -121,7 +130,7 @@ export class ScheduleStore {
 	 */
 	hasLocalEdits(path: string): boolean {
 		const entry = this.cache.get(path);
-		return entry !== undefined && serializeSchedule(entry.schedule) !== entry.raw;
+		return entry !== undefined && serializeSchedule(entry.schedule, this.layout()) !== entry.raw;
 	}
 
 	/**
@@ -157,7 +166,7 @@ export class ScheduleStore {
 			return false;
 		}
 
-		const schedule = parseSchedule(content, entry.schedule.weekStart, path);
+		const schedule = parseSchedule(content, entry.schedule.weekStart, path, this.layout());
 		this.cache.set(path, { schedule, raw: content });
 		return true;
 	}
@@ -212,7 +221,7 @@ export class ScheduleStore {
 			return true;
 		}
 
-		const content = serializeSchedule(entry.schedule);
+		const content = serializeSchedule(entry.schedule, this.layout());
 		const existing = this.vault.getFileByPath(path);
 
 		// Nothing to do when the file is already exactly what we would write.

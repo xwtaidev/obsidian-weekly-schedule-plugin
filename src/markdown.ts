@@ -12,7 +12,7 @@ import {
 	reviewSectionLabel,
 	reviewTitle,
 } from './i18n';
-import { DEFAULT_SLOT_LAYOUT, normalizeHeading, slotHeading } from './slots';
+import { normalizeHeading, slotHeading } from './slots';
 import type { SlotHeadingMatch, SlotLayout } from './slots';
 import { createTaskId } from './utils/helpers';
 import type { Locale } from './i18n';
@@ -247,16 +247,20 @@ export function classifyHeading(
  * section does not have is tasks: under `## Review` nothing becomes work, so a
  * checkbox written there is part of the line it is on.
  *
- * `fallbackLocale` is the language a file with no recognizable heading is taken
- * to be written in; the caller passes the interface language.
+ * `layout` says which cells a day has and what each one answers to; it is the
+ * layout the reader and the writer are both handed, so what one writes is what
+ * the other reads. `fallbackLocale` is the language a file with no recognizable
+ * heading is taken to be written in; the caller passes the interface language,
+ * which is what makes a week with no file yet follow the reader's language.
  */
 export function parseSchedule(
 	content: string,
 	weekStart: string,
 	path: string,
+	layout: SlotLayout,
 	fallbackLocale: Locale = getLocale(),
 ): WeekSchedule {
-	const days = createEmptyDays();
+	const days = createEmptyDays(layout.slots);
 	const byId = new Map<DayId, Day>();
 	for (const day of days) {
 		byId.set(day.id, day);
@@ -275,7 +279,7 @@ export function parseSchedule(
 	let fileLocale: Locale | null = null;
 
 	for (const rawLine of content.split(/\r?\n/)) {
-		const heading = classifyHeading(rawLine, DEFAULT_SLOT_LAYOUT, inReview);
+		const heading = classifyHeading(rawLine, layout, inReview);
 		if (heading !== null) {
 			switch (heading.kind) {
 				case 'reviewTitle':
@@ -390,13 +394,22 @@ export function parseSchedule(
  * The week's review goes after the days, in the order the sections are declared
  * rather than the order the file happened to use, so reading a file back and
  * writing it out again is what `hasLocalEdits` compares byte for byte.
+ *
+ * `layout` says which cells the week has and what each is called. It is asked
+ * for rather than defaulted, because a writer that guessed would write headings
+ * the next read could not find, and the store decides whether a week has local
+ * edits by comparing this very output against the file on disk.
  */
-export function serializeSchedule(schedule: WeekSchedule): string {
+export function serializeSchedule(schedule: WeekSchedule, layout: SlotLayout): string {
 	const lines: string[] = [`# ${schedule.path.split('/').pop()?.replace(/\.md$/, '') ?? ''}`];
 
 	for (const day of schedule.days) {
 		// A cell earns its heading by holding a task, and a row with nothing in it
 		// is not one — a heading with no task under it would be noise in the file.
+		// The cells are written in the order the day holds them, which is the order
+		// the layout was read in: a cell the layout does not know about is written
+		// under its own id rather than dropped, because a week losing work to a
+		// change of layout is not something a later read can undo.
 		const populated = day.quadrants.filter((quadrant) => quadrant.tasks.some(hasTaskText));
 		if (populated.length === 0) {
 			continue;
@@ -404,7 +417,7 @@ export function serializeSchedule(schedule: WeekSchedule): string {
 
 		lines.push('', `## ${dayLabel(day.id, schedule.locale)}`);
 		for (const quadrant of populated) {
-			lines.push('', `### ${slotHeading(DEFAULT_SLOT_LAYOUT, quadrant.id, schedule.locale)}`);
+			lines.push('', `### ${slotHeading(layout, quadrant.id, schedule.locale)}`);
 			for (const task of quadrant.tasks) {
 				if (!hasTaskText(task)) {
 					continue;

@@ -26,6 +26,7 @@ import {
 	previousDayId,
 } from './carry-over';
 import { ScheduleStore } from './store';
+import { DEFAULT_SLOT_LAYOUT } from './slots';
 import { CarryOverModal } from './ui/carry-over-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
@@ -36,6 +37,7 @@ import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
 import type { CarryOverItem } from './carry-over';
 import type { TranslationKey } from './i18n';
 import type { Moment } from './utils/date';
+import type { SlotLayout } from './slots';
 
 /**
  * Redraws a view's tab title after a language change.
@@ -63,11 +65,22 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 */
 	private localizedRevision = 0;
 	private settingTab!: WeeklyScheduleSettingTab;
+	/**
+	 * The cells a day has, and what each one answers to.
+	 *
+	 * Held rather than derived on every use, because a week is read and written
+	 * many times while nothing about the cells has changed. A vault nobody has
+	 * configured keeps the four built-in quadrants, which is what every read and
+	 * every write uses until there is a tab to change them from.
+	 */
+	private layout: SlotLayout = DEFAULT_SLOT_LAYOUT;
 
 	async onload() {
 		await this.loadSettings();
 
-		this.store = new ScheduleStore(this.app.vault);
+		// The layout is asked for on each use rather than handed over once, so a
+		// change to it reaches a week that is already loaded.
+		this.store = new ScheduleStore(this.app.vault, () => this.slotLayout());
 
 		this.registerView(
 			VIEW_TYPE_WEEKLY_SCHEDULE,
@@ -500,6 +513,17 @@ export default class WeeklySchedulePlugin extends Plugin {
 	async handleSettingsChange(): Promise<void> {
 		await this.viewOf()?.refresh();
 		await this.yearViewOf()?.refresh();
+	}
+
+	/**
+	 * The cells a day has, and what each one answers to.
+	 *
+	 * Every reader and writer takes its layout from here — the store, the views,
+	 * the carry-over popup — so there is one answer to what a cell is rather than
+	 * one per caller.
+	 */
+	slotLayout(): SlotLayout {
+		return this.layout;
 	}
 
 	private async navigateBy(weeks: number): Promise<void> {

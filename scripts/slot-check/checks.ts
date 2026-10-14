@@ -35,8 +35,13 @@ import {
 	slotHeading,
 	validateSlots,
 } from '../../src/slots';
+import type { SlotLayout } from '../../src/slots';
 import { syncLocale } from '../../src/i18n/index';
-import type { RetiredSlots, Slot } from '../../src/types';
+import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import type { DayId, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
+
+const WEEK_START = '2026-03-16';
+const PATH = 'weekly-schedule/2026/2026-W12.md';
 
 let failures = 0;
 
@@ -101,7 +106,7 @@ for (const [wording, id] of LEGACY_QUADRANT_HEADINGS) {
 }
 check(
 	'the wordings the plugin derives for itself resolve too, in both languages',
-	['Important · urgent', '重要 · 紧急', 'Not important · urgent', 'Important · not urgent'].map(
+	['Important · urgent', '重要 · 紧急', 'Unimportant · urgent', 'Important · not urgent'].map(
 		cellOfHeading,
 	),
 	['q1', 'q1', 'q2', 'q3'],
@@ -118,8 +123,10 @@ check(
 );
 check(
 	'a wording in the other order is read by its words',
-	['紧急 · 重要', 'urgent but unimportant', 'not urgent and unimportant'].map(cellOfHeading),
-	['q1', 'q2', 'q4'],
+	['紧急 · 重要', 'urgent but unimportant', 'not urgent and unimportant', 'Not important · urgent'].map(
+		cellOfHeading,
+	),
+	['q1', 'q2', 'q4', 'q2'],
 );
 check('a heading naming no cell resolves to nothing', cellOfHeading('随便写的一句'), null);
 check('an empty heading resolves to nothing', cellOfHeading('   '), null);
@@ -341,6 +348,157 @@ check(
 	'adding a cell after the four built-ins gets a free id',
 	nextSlotId(DEFAULT_SLOTS, {}),
 	's1',
+);
+
+// --- reading and writing a whole week -------------------------------------
+// The layout is not a display concern: it decides which heading a task is
+// written under and which cell a heading is read into, so a week read and
+// written by the same layout has to come back as the bytes it went out as. The
+// store decides whether a week has local edits by comparing exactly that, so a
+// layout that did not round-trip would have every week rewritten on open.
+
+function read(content: string, week: SlotLayout): WeekSchedule {
+	return parseSchedule(content, WEEK_START, PATH, week);
+}
+
+function save(schedule: WeekSchedule, week: SlotLayout): string {
+	return serializeSchedule(schedule, week);
+}
+
+/** Tasks of one cell as `done:text`, so a check can compare the whole cell. */
+function tasks(schedule: WeekSchedule, day: DayId, id: string): string[] {
+	return (
+		schedule.days.find((item) => item.id === day)?.quadrants.find((item) => item.id === id)
+			?.tasks ?? []
+	).map((task) => `${task.done ? 'x' : ' '}:${task.text}`);
+}
+
+/** Every task of the week, whatever cell it sits in. */
+function allTasks(schedule: WeekSchedule): string[] {
+	return schedule.days.flatMap((day) =>
+		day.quadrants.flatMap((quadrant) => quadrant.tasks.map((task) => task.text)),
+	);
+}
+
+/** A four-cell week in each language, as an older version of this plugin wrote it. */
+const FOUR_CELLS_ZH =
+	'# 2026-W12\n\n## 周一\n\n### 重要 · 紧急\n- [ ] A\n\n### 不重要 · 紧急\n- [ ] B\n\n### 重要 · 不紧急\n- [ ] C\n\n### 不重要 · 不紧急\n- [ ] D\n';
+const FOUR_CELLS_EN =
+	'# 2026-W12\n\n## Monday\n\n### Important · urgent\n- [ ] A\n\n### Unimportant · urgent\n- [ ] B\n\n### Important · not urgent\n- [ ] C\n\n### Unimportant · not urgent\n- [ ] D\n';
+
+check(
+	'a four-cell week in zh reads and writes back byte for byte',
+	save(read(FOUR_CELLS_ZH, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT),
+	FOUR_CELLS_ZH,
+);
+check(
+	'a four-cell week in en reads and writes back byte for byte',
+	save(read(FOUR_CELLS_EN, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT),
+	FOUR_CELLS_EN,
+);
+
+// A week the plugin wrote in a wording it has since stopped using reads into the
+// right cell, and settles on the wording it uses now after one save.
+for (const [wording, id] of LEGACY_QUADRANT_HEADINGS) {
+	const raw = `# 2026-W12\n\n## 周一\n\n### ${wording}\n- [ ] A\n`;
+	const once = save(read(raw, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT);
+	check(
+		`a week written as 「${wording}」 still reads into ${id}`,
+		tasks(read(raw, DEFAULT_SLOT_LAYOUT), 'mon', id),
+		[' :A'],
+	);
+	check(
+		`... and settles once it is saved again`,
+		save(read(once, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT),
+		once,
+	);
+}
+
+// Removing cells folds their work into the cells that took it over. The count is
+// the assertion that matters: a heading that stopped resolving would take the
+// tasks under it with it, and nothing would ever say so.
+const TWO_CELLS = layout([cell('q1'), cell('q2')], { q3: 'q2', q4: 'q2' });
+check(
+	'two cells read all four cells of an older week, and keep every task',
+	allTasks(read(FOUR_CELLS_ZH, TWO_CELLS)),
+	['A', 'B', 'C', 'D'],
+);
+check(
+	'... with the work of the removed cells folded into the one that took it over',
+	tasks(read(FOUR_CELLS_ZH, TWO_CELLS), 'mon', 'q2'),
+	[' :B', ' :C', ' :D'],
+);
+
+const ONE_CELL = layout([cell('q1')], { q2: 'q1', q3: 'q1', q4: 'q1' });
+check(
+	'a week of one cell reads all four cells of an older week, and keeps every task',
+	allTasks(read(FOUR_CELLS_ZH, ONE_CELL)),
+	['A', 'B', 'C', 'D'],
+);
+check(
+	'... all of it in the only cell there is',
+	tasks(read(FOUR_CELLS_ZH, ONE_CELL), 'mon', 'q1'),
+	[' :A', ' :B', ' :C', ' :D'],
+);
+check(
+	'... and a day has as many cells as the layout holds',
+	read('', ONE_CELL).days.map((day) => day.quadrants.length),
+	[1, 1, 1, 1, 1, 1, 1],
+);
+check(
+	'eight cells are eight cells on every day',
+	read('', layout(Array.from({ length: 8 }, (_unused, index) => cell(`s${index + 1}`, `格${index + 1}`, index))))
+		.days.map((day) => day.quadrants.length),
+	[8, 8, 8, 8, 8, 8, 8],
+);
+
+// A week the user's own layout wrote comes back as it went out — the promise the
+// whole feature rests on, in the shape a configured vault actually has.
+const RENAMED = layout([cell('q1', '深度工作'), cell('q2', '沟通')]);
+const RENAMED_FILE = '# 2026-W12\n\n## 周一\n\n### 深度工作\n- [ ] A\n\n### 沟通\n- [ ] B\n';
+check(
+	'a week in a layout the user named reads and writes back byte for byte',
+	save(read(RENAMED_FILE, RENAMED), RENAMED),
+	RENAMED_FILE,
+);
+check(
+	'... and the tasks are in the cells they were written under',
+	[tasks(read(RENAMED_FILE, RENAMED), 'mon', 'q1'), tasks(read(RENAMED_FILE, RENAMED), 'mon', 'q2')],
+	[[' :A'], [' :B']],
+);
+
+use('en');
+const namedFromEn = save(read(RENAMED_FILE, RENAMED), RENAMED);
+use('zh');
+const namedFromZh = save(read(RENAMED_FILE, RENAMED), RENAMED);
+check(
+	'a cell the user named is written the same whatever the interface language is',
+	[namedFromEn === namedFromZh, namedFromZh.includes('### 深度工作')],
+	[true, true],
+);
+
+// The other half of that rule: a cell nobody renamed goes on being written in
+// the language of the file it is in, which is what keeps the four built-ins
+// byte-stable for a vault that never configures anything.
+use('zh');
+check(
+	'an unnamed cell follows the language of the file, not the interface',
+	save(read(FOUR_CELLS_EN, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT),
+	FOUR_CELLS_EN,
+);
+use('en');
+check(
+	'... and follows it the other way round too',
+	save(read(FOUR_CELLS_ZH, DEFAULT_SLOT_LAYOUT), DEFAULT_SLOT_LAYOUT),
+	FOUR_CELLS_ZH,
+);
+
+const REORDERED = layout([cell('q2'), cell('q1')]);
+const reorderedText = save(read(FOUR_CELLS_ZH, REORDERED), REORDERED);
+check(
+	'cells are written in the order the layout holds them',
+	reorderedText.indexOf('### 不重要 · 紧急') < reorderedText.indexOf('### 重要 · 紧急'),
+	true,
 );
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);

@@ -37,6 +37,7 @@ import {
 	parseSchedule,
 	serializeSchedule,
 } from '../../src/markdown';
+import { DEFAULT_SLOT_LAYOUT } from '../../src/slots';
 import { reviewSpan } from '../../src/utils/helpers';
 import { formatWeekLabel, formatWeekRange } from '../../src/i18n/format';
 import {
@@ -74,6 +75,19 @@ function check(label: string, actual: unknown, expected: unknown): void {
 function use(language: string): void {
 	setStubLanguage(language);
 	syncLocale();
+}
+
+/**
+ * Reading and writing with the layout a vault starts with — the four quadrants,
+ * none renamed. Every file these checks use is such a file; a layout the user
+ * configured is what `npm run check:slots` is about.
+ */
+function read(content: string, weekStart: string, path: string): WeekSchedule {
+	return parseSchedule(content, weekStart, path, DEFAULT_SLOT_LAYOUT);
+}
+
+function save(schedule: WeekSchedule): string {
+	return serializeSchedule(schedule, DEFAULT_SLOT_LAYOUT);
 }
 
 function cell(schedule: WeekSchedule, day: DayId, quadrant: QuadrantId) {
@@ -166,73 +180,73 @@ check('an unsupported language still gets translated text', t('board.thisWeek'),
 
 // --- a new week follows the interface language ----------------------------
 use('en');
-const newEn = parseSchedule('', WEEK_START, PATH);
+const newEn = read('', WEEK_START, PATH);
 fill(newEn, 'mon', 'q1', 'Ship it');
-const textEn = serializeSchedule(newEn);
+const textEn = save(newEn);
 check('new file in en: day heading', textEn.includes('## Monday'), true);
 check('new file in en: quadrant heading', textEn.includes('### Important · urgent'), true);
 check('new file in en: checkbox syntax kept', textEn.includes('- [ ] Ship it'), true);
 check('new file in en: file language', newEn.locale, 'en');
 
 use('zh');
-const newZh = parseSchedule('', WEEK_START, PATH);
+const newZh = read('', WEEK_START, PATH);
 fill(newZh, 'mon', 'q1', '交周报');
 fill(newZh, 'mon', 'q1', '修线上 bug', true);
 fill(newZh, 'tue', 'q2', '回复邮件');
-const textZh = serializeSchedule(newZh);
+const textZh = save(newZh);
 check('new file in zh: day heading', textZh.includes('## 周一'), true);
 check('new file in zh: quadrant heading', textZh.includes('### 重要 · 紧急'), true);
 check('new file in zh: file language', newZh.locale, 'zh');
 check(
 	'an empty week writes no headings to translate',
-	serializeSchedule(parseSchedule('', WEEK_START, PATH)),
+	save(read('', WEEK_START, PATH)),
 	'# 2026-W12\n',
 );
 
 // --- an existing file keeps the language it was written in ----------------
 use('en');
-const reloadedZh = parseSchedule(textZh, WEEK_START, PATH);
+const reloadedZh = read(textZh, WEEK_START, PATH);
 check('existing zh file is read as zh', reloadedZh.locale, 'zh');
 check('existing zh tasks survive', tasks(reloadedZh, 'mon', 'q1'), [' :交周报', 'x:修线上 bug']);
 check('existing zh tasks survive on another day', tasks(reloadedZh, 'tue', 'q2'), [' :回复邮件']);
-check('saving after a switch to en keeps zh wording', serializeSchedule(reloadedZh), textZh);
-check('reading and writing is idempotent', serializeSchedule(parseSchedule(textZh, WEEK_START, PATH)), textZh);
+check('saving after a switch to en keeps zh wording', save(reloadedZh), textZh);
+check('reading and writing is idempotent', save(read(textZh, WEEK_START, PATH)), textZh);
 
 use('zh');
-const reloadedEn = parseSchedule(textEn, WEEK_START, PATH);
+const reloadedEn = read(textEn, WEEK_START, PATH);
 check('existing en file is read as en', reloadedEn.locale, 'en');
-check('saving after a switch to zh keeps en wording', serializeSchedule(reloadedEn), textEn);
+check('saving after a switch to zh keeps en wording', save(reloadedEn), textEn);
 
 // --- hand-edited and legacy files -----------------------------------------
 use('en');
 const legacyZh =
 	'# 2026-W12\n\n## 周一\n\n### 重要 紧急\n- [ ] A\n\n### 不重要 不紧急\n- [ ] B\n\n## 周五\n\n### 紧急 · 重要\n- [x] C\n';
-const legacy = parseSchedule(legacyZh, WEEK_START, PATH);
+const legacy = read(legacyZh, WEEK_START, PATH);
 check('zh heading without a separator maps to q1', tasks(legacy, 'mon', 'q1'), [' :A']);
 check('zh heading without a separator maps to q4', tasks(legacy, 'mon', 'q4'), [' :B']);
 check('zh word order is read by keyword', tasks(legacy, 'fri', 'q1'), ['x:C']);
-check('legacy zh file keeps its wording', serializeSchedule(legacy).includes('## 周一'), true);
+check('legacy zh file keeps its wording', save(legacy).includes('## 周一'), true);
 
 const legacyEn =
 	'## Monday\n\n### urgent but not important\n- [ ] D\n\n### something else entirely\n- [ ] E\n';
-const legacyEnSchedule = parseSchedule(legacyEn, WEEK_START, PATH);
+const legacyEnSchedule = read(legacyEn, WEEK_START, PATH);
 check('legacy en wording maps to q2', tasks(legacyEnSchedule, 'mon', 'q2'), [' :D']);
 check(
 	'an unrecognized heading closes the cell instead of guessing',
-	serializeSchedule(legacyEnSchedule).includes('- [ ] E'),
+	save(legacyEnSchedule).includes('- [ ] E'),
 	false,
 );
 check('legacy en file is read as en', legacyEnSchedule.locale, 'en');
 
-const idFile = parseSchedule('## tue\n\n### Important · not urgent\n- [ ] F\n', WEEK_START, PATH);
+const idFile = read('## tue\n\n### Important · not urgent\n- [ ] F\n', WEEK_START, PATH);
 check('a bare day id is accepted', tasks(idFile, 'tue', 'q3'), [' :F']);
 
 // --- a task that runs over several lines ----------------------------------
 // A task is usually one line, and a line break inside one is stored as an
 // indented line under the checkbox: the task's own text, with no markup added.
-const multiline = parseSchedule('', WEEK_START, PATH);
+const multiline = read('', WEEK_START, PATH);
 fill(multiline, 'mon', 'q1', '先和后端对齐接口\n再补上灰度开关');
-const multilineText = serializeSchedule(multiline);
+const multilineText = save(multiline);
 check(
 	'a multi-line task is written as its first line, then the rest indented',
 	multilineText.includes('- [ ] 先和后端对齐接口\n  再补上灰度开关\n'),
@@ -240,28 +254,28 @@ check(
 );
 check(
 	'a multi-line task is read back as one task',
-	tasks(parseSchedule(multilineText, WEEK_START, PATH), 'mon', 'q1'),
+	tasks(read(multilineText, WEEK_START, PATH), 'mon', 'q1'),
 	[' :先和后端对齐接口\n再补上灰度开关'],
 );
 check(
 	'and writing it out again changes nothing',
-	serializeSchedule(parseSchedule(multilineText, WEEK_START, PATH)),
+	save(read(multilineText, WEEK_START, PATH)),
 	multilineText,
 );
 
 check('blank lines are not part of a task', normalizeTaskText('  第一行  \n\n  \n第二行\n  '), '第一行\n第二行');
 check('a line break typed on Windows is a line break', normalizeTaskText('a\r\nb'), 'a\nb');
-const messy = parseSchedule('', WEEK_START, PATH);
+const messy = read('', WEEK_START, PATH);
 fill(messy, 'mon', 'q1', '  第一行  \n\n第二行\n');
 check(
 	'and are dropped on the way to the file rather than written out to be lost',
-	serializeSchedule(messy).includes('- [ ] 第一行\n  第二行\n'),
+	save(messy).includes('- [ ] 第一行\n  第二行\n'),
 	true,
 );
 
 // What ends a task is what ends it in Markdown, so a hand-edited file means
 // what it looks like.
-const broken = parseSchedule(
+const broken = read(
 	'## mon\n\n### Important · urgent\n- [ ] A\n\n  这一段不再属于 A\n- [ ] B\n  属于 B\nplain prose\n- [ ] C\n',
 	WEEK_START,
 	PATH,
@@ -274,7 +288,7 @@ check('a blank line ends the task above it', tasks(broken, 'mon', 'q1'), [
 check(
 	'an indented checkbox is still a task of its own',
 	tasks(
-		parseSchedule(
+		read(
 			'## mon\n\n### Important · urgent\n- [ ] A\n  - [ ] B\n',
 			WEEK_START,
 			PATH,
@@ -287,7 +301,7 @@ check(
 check(
 	'a checkbox line with nothing after it takes its first line as its first',
 	tasks(
-		parseSchedule('## mon\n\n### Important · urgent\n- [ ]\n  第一行\n', WEEK_START, PATH),
+		read('## mon\n\n### Important · urgent\n- [ ]\n  第一行\n', WEEK_START, PATH),
 		'mon',
 		'q1',
 	),
@@ -298,7 +312,7 @@ check(
 // A row waiting for its first keystroke is not work: it is never written, it
 // earns its cell no heading, and the board's totals count the week's tasks
 // rather than its rows.
-const waiting = parseSchedule('', WEEK_START, PATH);
+const waiting = read('', WEEK_START, PATH);
 fill(waiting, 'mon', 'q1', '先说点什么');
 cell(waiting, 'mon', 'q1')?.tasks.push({ id: 'empty', text: '', done: false });
 cell(waiting, 'mon', 'q3')?.tasks.push({ id: 'blank', text: '   \n ', done: false });
@@ -306,7 +320,7 @@ check('an empty task is not a task', hasTaskText({ id: 'a', text: '', done: fals
 check('nor is one holding only space', hasTaskText({ id: 'a', text: '  \n ', done: false }), false);
 check('a task with text is', hasTaskText({ id: 'a', text: '写周报', done: false }), true);
 
-const waitingText = serializeSchedule(waiting);
+const waitingText = save(waiting);
 check('only the task holding something is written', (waitingText.match(/^- \[/gm) ?? []).length, 1);
 check('and a cell holding only a row like that earns no heading', (waitingText.match(/^### /gm) ?? []).length, 1);
 
@@ -318,11 +332,11 @@ check('and a cell holding only a row like that earns no heading', (waitingText.m
 // nobody reviewed is written out exactly as it was read.
 use('en');
 
-const reviewed = parseSchedule('', WEEK_START, PATH);
+const reviewed = read('', WEEK_START, PATH);
 fill(reviewed, 'mon', 'q1', 'Ship it');
 reviewed.review.plan = ['先把周报自动化推出去'];
 reviewed.review.check = ['q3 拖了 3 条，都是重要不紧急'];
-const reviewedText = serializeSchedule(reviewed);
+const reviewedText = save(reviewed);
 
 check(
 	'the review is written after the days',
@@ -337,7 +351,7 @@ check(
 check('a section holding nothing earns no heading', (reviewedText.match(/^### /gm) ?? []).length, 3);
 check(
 	'a reviewed week is read back exactly as it was written',
-	parseSchedule(reviewedText, WEEK_START, PATH).review,
+	read(reviewedText, WEEK_START, PATH).review,
 	{
 		plan: ['先把周报自动化推出去'],
 		do: [],
@@ -347,47 +361,47 @@ check(
 );
 check(
 	'and writing it out again changes nothing',
-	serializeSchedule(parseSchedule(reviewedText, WEEK_START, PATH)),
+	save(read(reviewedText, WEEK_START, PATH)),
 	reviewedText,
 );
 
 check(
 	'every bullet is an item of its own',
-	parseSchedule('## Review\n\n### Check\n- 一\n- 二\n- 三\n', WEEK_START, PATH).review.check,
+	read('## Review\n\n### Check\n- 一\n- 二\n- 三\n', WEEK_START, PATH).review.check,
 	['一', '二', '三'],
 );
 check(
 	'and a section written out by hand is read as the items it looks like',
-	parseSchedule('## Review\n\n### Check\n一\n\n二\n', WEEK_START, PATH).review.check,
+	read('## Review\n\n### Check\n一\n\n二\n', WEEK_START, PATH).review.check,
 	['一', '二'],
 );
 
 const continued = '## Review\n\n### Check\n- 一\n  二\n';
 check(
 	'an indented line continues the item above it rather than opening another',
-	parseSchedule(continued, WEEK_START, PATH).review.check,
+	read(continued, WEEK_START, PATH).review.check,
 	['一\n二'],
 );
 check(
 	'and an item running over several lines is written back the way it came',
-	serializeSchedule(parseSchedule(continued, WEEK_START, PATH)),
+	save(read(continued, WEEK_START, PATH)),
 	'# 2026-W12\n\n## Review\n\n### Check\n- 一\n  二\n',
 );
 
-const spaced = parseSchedule('', WEEK_START, PATH);
+const spaced = read('', WEEK_START, PATH);
 spaced.review.do = ['  \n\n  ', ''];
 check(
 	'a section holding only space earns no heading either',
-	(serializeSchedule(spaced).match(/^### /gm) ?? []).length,
+	(save(spaced).match(/^### /gm) ?? []).length,
 	0,
 );
 check(
 	'and an item holding nothing is not written at all',
-	(serializeSchedule(spaced).match(/^- /gm) ?? []).length,
+	(save(spaced).match(/^- /gm) ?? []).length,
 	0,
 );
 
-const boxed = parseSchedule(
+const boxed = read(
 	'## Review\n\n### Check\n- [ ] 这一行不是任务\n- 一句普通的话\n',
 	WEEK_START,
 	PATH,
@@ -400,8 +414,8 @@ check(
 check('and nothing written in the review becomes a task', allTasks(boxed), []);
 check(
 	'reading a section and writing it out again is a fixed point',
-	serializeSchedule(parseSchedule(serializeSchedule(boxed), WEEK_START, PATH)),
-	serializeSchedule(boxed),
+	save(read(save(boxed), WEEK_START, PATH)),
+	save(boxed),
 );
 
 check('a review holding nothing does not count as written', hasReviewText(createEmptyReview()), false);
@@ -470,22 +484,22 @@ check('and one where it is one', reviewSpan(1), 1);
 const closedReview = '## Review\n\n### Plan\n计划一句\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 回到板子上\n';
 check(
 	'an unrecognized heading closes the review section',
-	parseSchedule('## Review\n\n### Check\n一句\n\n### 别的东西\n漏掉的\n', WEEK_START, PATH)
+	read('## Review\n\n### Check\n一句\n\n### 别的东西\n漏掉的\n', WEEK_START, PATH)
 		.review.check,
 	['一句'],
 );
 check(
 	'a day heading after the review leaves the review alone',
-	parseSchedule(closedReview, WEEK_START, PATH).review.plan,
+	read(closedReview, WEEK_START, PATH).review.plan,
 	['计划一句'],
 );
 check(
 	'and the day below it is still read as a day',
-	tasks(parseSchedule(closedReview, WEEK_START, PATH), 'mon', 'q1'),
+	tasks(read(closedReview, WEEK_START, PATH), 'mon', 'q1'),
 	[' :回到板子上'],
 );
 
-const outOfOrder = parseSchedule(
+const outOfOrder = read(
 	'## Review\n\n### Act\n先写的改进\n\n### Plan\n后写的计划\n',
 	WEEK_START,
 	PATH,
@@ -497,15 +511,15 @@ check(
 );
 check(
 	'and are written back in the order the plugin declares',
-	serializeSchedule(outOfOrder).indexOf('### Plan') <
-		serializeSchedule(outOfOrder).indexOf('### Act'),
+	save(outOfOrder).indexOf('### Plan') <
+		save(outOfOrder).indexOf('### Act'),
 	true,
 );
 
 use('zh');
-const reviewZh = parseSchedule('', WEEK_START, PATH);
+const reviewZh = read('', WEEK_START, PATH);
 reviewZh.review.act = ['周三、周五各留半天给 q3'];
-const reviewZhText = serializeSchedule(reviewZh);
+const reviewZhText = save(reviewZh);
 check('new review in zh: title heading', reviewZhText.includes('## 复盘'), true);
 check(
 	'new review in zh: section heading',
@@ -523,14 +537,14 @@ check(
 use('en');
 check(
 	'an existing zh review keeps its wording',
-	serializeSchedule(parseSchedule(reviewZhText, WEEK_START, PATH)),
+	save(read(reviewZhText, WEEK_START, PATH)),
 	reviewZhText,
 );
 
 use('zh');
 check(
 	'an existing en review keeps its wording',
-	serializeSchedule(parseSchedule(reviewedText, WEEK_START, PATH)),
+	save(read(reviewedText, WEEK_START, PATH)),
 	reviewedText,
 );
 
@@ -541,7 +555,7 @@ check(
 // unwritten, and writing it out again has to leave the file as it was found:
 // opening an old week must not be a way to rewrite it.
 const beforeReview = '# 2026-W12\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 老文件里的一条\n';
-const unreviewed = parseSchedule(beforeReview, WEEK_START, PATH);
+const unreviewed = read(beforeReview, WEEK_START, PATH);
 check('a file from before the review holds four empty sections', unreviewed.review, {
 	plan: [],
 	do: [],
@@ -550,29 +564,29 @@ check('a file from before the review holds four empty sections', unreviewed.revi
 });
 check('so nothing in it reads as a review', hasReviewText(unreviewed.review), false);
 check('and its tasks are read as they always were', allTasks(unreviewed), ['老文件里的一条']);
-check('it is written back byte for byte', serializeSchedule(unreviewed), beforeReview);
+check('it is written back byte for byte', save(unreviewed), beforeReview);
 check(
 	'and gains no review heading on the way out',
-	serializeSchedule(unreviewed).includes('## 复盘'),
+	save(unreviewed).includes('## 复盘'),
 	false,
 );
 
 // --- a language switch while the board is open ----------------------------
 use('zh');
-const openBoard = parseSchedule('', WEEK_START, PATH);
+const openBoard = read('', WEEK_START, PATH);
 fill(openBoard, 'wed', 'q3', '写文档');
-const writtenBeforeSwitch = serializeSchedule(openBoard);
+const writtenBeforeSwitch = save(openBoard);
 use('en');
 check(
 	'a switch does not translate what is already loaded',
-	serializeSchedule(openBoard),
+	save(openBoard),
 	writtenBeforeSwitch,
 );
-const afterSwitch = parseSchedule('', WEEK_START, PATH);
+const afterSwitch = read('', WEEK_START, PATH);
 fill(afterSwitch, 'wed', 'q3', 'Write docs');
 check(
 	'a switch does change what a new file is written with',
-	serializeSchedule(afterSwitch).includes('## Wednesday'),
+	save(afterSwitch).includes('## Wednesday'),
 	true,
 );
 

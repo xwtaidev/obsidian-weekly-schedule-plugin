@@ -37,6 +37,7 @@ import {
 	readMarkedText,
 } from '../../src/carry-over';
 import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import { DEFAULT_SLOT_LAYOUT } from '../../src/slots';
 import { formatShortDate } from '../../src/i18n/format';
 import { syncLocale, t, tp } from '../../src/i18n/index';
 import { dateKey, dayIdOf, shiftWeek, weekFilePath, weekKey } from '../../src/utils/date';
@@ -69,6 +70,19 @@ function check(label: string, actual: unknown, expected: unknown): void {
 function use(language: string): void {
 	setStubLanguage(language);
 	syncLocale();
+}
+
+/**
+ * Reading and writing with the layout a vault starts with — the four quadrants,
+ * none renamed. Every week these checks use is such a week; carrying work
+ * between cells the user configured is what `npm run check:slots` is about.
+ */
+function read(content: string, weekStart: string, path: string): WeekSchedule {
+	return parseSchedule(content, weekStart, path, DEFAULT_SLOT_LAYOUT);
+}
+
+function save(schedule: WeekSchedule): string {
+	return serializeSchedule(schedule, DEFAULT_SLOT_LAYOUT);
 }
 
 function cell(schedule: WeekSchedule, day: DayId, quadrant: QuadrantId) {
@@ -142,7 +156,7 @@ check(
 // --- what the previous week offers -----------------------------------------
 // A file written in Chinese, read while the interface is English: the mark has
 // to follow the file, not the interface.
-const lastWeek = parseSchedule(
+const lastWeek = read(
 	'# 2026-W39\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 回应监管问询\n- [x] 提交季度合规材料\n\n## 周二\n\n### 重要 · 紧急\n- [ ] 修复客户端崩溃\n\n## 周五\n\n### 重要 · 不紧急\n- [ ] 整理架构决策记录\n',
 	SOURCE_START,
 	SOURCE_PATH,
@@ -150,7 +164,7 @@ const lastWeek = parseSchedule(
 add(lastWeek, 'wed', 'q2', '');
 check('the previous week is read as a Chinese file', lastWeek.locale, 'zh');
 
-const thisWeek = parseSchedule('', TARGET_START, TARGET_PATH);
+const thisWeek = read('', TARGET_START, TARGET_PATH);
 add(thisWeek, 'fri', 'q3', '整理架构决策记录');
 
 const plan = planCarryOver(lastWeek, thisWeek);
@@ -172,18 +186,18 @@ check(
 	[false, false, true],
 );
 
-const doubled = parseSchedule('', SOURCE_START, SOURCE_PATH);
+const doubled = read('', SOURCE_START, SOURCE_PATH);
 add(doubled, 'tue', 'q1', 'One and the same');
 add(doubled, 'tue', 'q1', 'One and the same');
 check(
 	'the same wording twice in one cell is one choice',
-	planCarryOver(doubled, parseSchedule('', TARGET_START, TARGET_PATH)).items.length,
+	planCarryOver(doubled, read('', TARGET_START, TARGET_PATH)).items.length,
 	1,
 );
 
 // --- carrying what was chosen ----------------------------------------------
 const chosen = plan.items;
-const before = serializeSchedule(lastWeek);
+const before = save(lastWeek);
 const added = applyCarryOver(thisWeek, chosen);
 
 check('only the tasks the target week lacks are added', added, 2);
@@ -198,7 +212,7 @@ check('carried tasks are unfinished', tasks(thisWeek, 'mon', 'q1').every((row) =
 check('no other cell is touched', tasks(thisWeek, 'wed', 'q1'), []);
 check(
 	'the target file is written as checkboxes, without a mark',
-	serializeSchedule(thisWeek).includes('- [ ] 回应监管问询\n'),
+	save(thisWeek).includes('- [ ] 回应监管问询\n'),
 	true,
 );
 
@@ -213,14 +227,14 @@ check('a task already there is marked too', tasks(lastWeek, 'fri', 'q3'), [
 	' :整理架构决策记录（已带入 2026-W40）',
 ]);
 check('a task that was not chosen is left alone', tasks(lastWeek, 'wed', 'q2'), [' :']);
-const markedSource = serializeSchedule(lastWeek);
+const markedSource = save(lastWeek);
 check(
 	'the mark is written in the language of the file',
 	markedSource.includes('（已带入 2026-W40）'),
 	true,
 );
 // Read off disk and written back again — the trip every mark actually makes.
-const reread = serializeSchedule(parseSchedule(markedSource, SOURCE_START, SOURCE_PATH));
+const reread = save(read(markedSource, SOURCE_START, SOURCE_PATH));
 check(
 	'the mark survives the file round trip',
 	reread.includes('- [ ] 回应监管问询（已带入 2026-W40）'),
@@ -228,7 +242,7 @@ check(
 );
 check(
 	'and reading and writing it once more changes nothing',
-	serializeSchedule(parseSchedule(reread, SOURCE_START, SOURCE_PATH)),
+	save(read(reread, SOURCE_START, SOURCE_PATH)),
 	reread,
 );
 check('nothing was taken out of the week the work came from', tasks(lastWeek, 'mon', 'q1').length, 2);
@@ -247,13 +261,13 @@ check(
 );
 check('so a second run adds nothing', applyCarryOver(thisWeek, again.items), 0);
 markCarried(lastWeek, again.items, TARGET_WEEK, lastWeek.locale ?? 'en');
-check('and leaves the previous week byte for byte as it was', serializeSchedule(lastWeek), markedSource);
+check('and leaves the previous week byte for byte as it was', save(lastWeek), markedSource);
 check('with the target week still holding one of each', tasks(thisWeek, 'mon', 'q1'), [
 	' :回应监管问询',
 ]);
 
 // --- carrying the same week on into a later one ----------------------------
-const laterWeek = parseSchedule('', LATER_START, LATER_PATH);
+const laterWeek = read('', LATER_START, LATER_PATH);
 const laterPlan = planCarryOver(lastWeek, laterWeek);
 check(
 	'the tasks are read, not their marks',
@@ -270,7 +284,7 @@ markCarried(lastWeek, laterPlan.items, LATER_WEEK, lastWeek.locale ?? 'en');
 check('the mark then names the later week', tasks(lastWeek, 'tue', 'q1'), [
 	' :修复客户端崩溃（已带入 2026-W41）',
 ]);
-check('and it is still one mark, not two', (serializeSchedule(lastWeek).match(/已带入/g) ?? []).length, 3);
+check('and it is still one mark, not two', (save(lastWeek).match(/已带入/g) ?? []).length, 3);
 
 // --- the week before a target is found the way the board finds weeks -------
 const week1Of2026 = moment([2025, 11, 29]);
@@ -308,7 +322,7 @@ check(
 );
 check('the notice dates are written the way the board writes them', formatShortDate(moment([2026, 8, 27])), '9/27');
 
-const dayWeek = parseSchedule(
+const dayWeek = read(
 	'# 2026-W40\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 回应监管问询\n- [x] 提交季度合规材料\n\n### 重要 · 不紧急\n- [ ] 整理架构决策记录\n\n## 周二\n\n### 重要 · 紧急\n- [ ] 修复客户端崩溃\n\n## 周三\n\n### 重要 · 紧急\n- [ ] 写周报\n',
 	TARGET_START,
 	TARGET_PATH,
@@ -364,9 +378,9 @@ check('a finished task is not moved', tasks(dayWeek, 'mon', 'q1'), [
 check('a blank task stays behind too', tasks(dayWeek, 'mon', 'q4'), [' :']);
 check('a day that is neither end of the move is untouched', tasks(dayWeek, 'wed', 'q1'), [' :写周报']);
 
-const dayFile = serializeSchedule(dayWeek);
+const dayFile = save(dayWeek);
 check('the words now appear once in the file', (dayFile.match(/回应监管问询/g) ?? []).length, 1);
-const dayReread = parseSchedule(dayFile, TARGET_START, TARGET_PATH);
+const dayReread = read(dayFile, TARGET_START, TARGET_PATH);
 check('and the move survives the file round trip', tasks(dayReread, 'tue', 'q1'), [
 	' :修复客户端崩溃',
 	' :缓解线上告警',
@@ -386,11 +400,11 @@ check(
 	2,
 );
 check('so a second run moves nothing', applyDayCarryOver(dayWeek, secondDayPlan), 0);
-check('and leaves the file byte for byte as it was', serializeSchedule(dayWeek), dayFile);
+check('and leaves the file byte for byte as it was', save(dayWeek), dayFile);
 
 // A mark is not part of a task's words here either: a line marked on Monday and
 // the same words unmarked on Tuesday are one task, and the copy is not moved.
-const markedDays = parseSchedule('', TARGET_START, TARGET_PATH);
+const markedDays = read('', TARGET_START, TARGET_PATH);
 add(markedDays, 'mon', 'q1', '回应监管问询（已带入 2026-W40）');
 add(markedDays, 'tue', 'q1', '回应监管问询');
 const markedDayPlan = planDayCarryOver(markedDays, 'mon', 'tue');
@@ -398,7 +412,7 @@ check('a mark does not hide that the next day has the task', markedDayPlan.alrea
 check('so the marked line stays behind', markedDayPlan.moves.length, 0);
 
 // Moving is not marking: the words of a task that does move are left alone.
-const movedMark = parseSchedule('', TARGET_START, TARGET_PATH);
+const movedMark = read('', TARGET_START, TARGET_PATH);
 add(movedMark, 'mon', 'q1', '回应监管问询（已带入 2026-W40）');
 applyDayCarryOver(movedMark, planDayCarryOver(movedMark, 'mon', 'tue'));
 check('a moved task keeps its own wording, mark and all', tasks(movedMark, 'tue', 'q1'), [
@@ -409,14 +423,14 @@ check('a moved task keeps its own wording, mark and all', tasks(movedMark, 'tue'
 // A line break inside a task does not make it two tasks: it is offered, carried,
 // moved and counted as the one task it is. The mark goes on the end of the task
 // — which is now the end of its last line.
-const multiSource = parseSchedule('', SOURCE_START, SOURCE_PATH);
+const multiSource = read('', SOURCE_START, SOURCE_PATH);
 add(multiSource, 'mon', 'q1', '回应监管问询\n先补材料清单');
-const multiPlan = planCarryOver(multiSource, parseSchedule('', TARGET_START, TARGET_PATH));
+const multiPlan = planCarryOver(multiSource, read('', TARGET_START, TARGET_PATH));
 check('a multi-line task is offered as one task', multiPlan.items.map((item) => item.text), [
 	'回应监管问询\n先补材料清单',
 ]);
 
-const multiTarget = parseSchedule('', TARGET_START, TARGET_PATH);
+const multiTarget = read('', TARGET_START, TARGET_PATH);
 check('and is carried whole', applyCarryOver(multiTarget, multiPlan.items), 1);
 check('landing on the day it was planned on, lines and all', tasks(multiTarget, 'mon', 'q1'), [
 	' :回应监管问询\n先补材料清单',
@@ -431,7 +445,7 @@ check(
 	readMarkedText('回应监管问询\n先补材料清单 (carried over to 2026-W40)'),
 	{ text: '回应监管问询\n先补材料清单', carriedTo: TARGET_WEEK },
 );
-const multiFile = serializeSchedule(multiSource);
+const multiFile = save(multiSource);
 check(
 	'so the file holds one task with an indented line',
 	multiFile.includes('- [ ] 回应监管问询\n  先补材料清单 (carried over to 2026-W40)\n'),
@@ -439,7 +453,7 @@ check(
 );
 check(
 	'and the mark is read off it again after the round trip',
-	tasks(parseSchedule(multiFile, SOURCE_START, SOURCE_PATH), 'mon', 'q1'),
+	tasks(read(multiFile, SOURCE_START, SOURCE_PATH), 'mon', 'q1'),
 	[' :回应监管问询\n先补材料清单 (carried over to 2026-W40)'],
 );
 const multiAgain = planCarryOver(multiSource, multiTarget);
@@ -451,7 +465,7 @@ check(
 check('so a second run adds nothing', applyCarryOver(multiTarget, multiAgain.items), 0);
 
 // The day move hands the task itself over, so its words are not ours to edit.
-const multiDays = parseSchedule('', TARGET_START, TARGET_PATH);
+const multiDays = read('', TARGET_START, TARGET_PATH);
 add(multiDays, 'mon', 'q1', '回应监管问询\n先补材料清单');
 applyDayCarryOver(multiDays, planDayCarryOver(multiDays, 'mon', 'tue'));
 check('a multi-line task moves as one task, words untouched', tasks(multiDays, 'tue', 'q1'), [
