@@ -384,6 +384,18 @@ export function parseSchedule(
 }
 
 /**
+ * The line a cell is written on, under the wording the layout gives it.
+ *
+ * One function because two writers have to agree on it to the byte: saving a
+ * week, and bringing a whole vault's headings up to date when the cells change.
+ * A second spelling of this would be a way for the second one to write a
+ * heading the first would not read.
+ */
+function slotHeadingLine(layout: SlotLayout, id: QuadrantId, locale: Locale): string {
+	return `### ${slotHeading(layout, id, locale)}`;
+}
+
+/**
  * Writes a board file, with the headings in the language the schedule was loaded
  * with, so saving an edit never translates a file the user already had.
  *
@@ -417,7 +429,7 @@ export function serializeSchedule(schedule: WeekSchedule, layout: SlotLayout): s
 
 		lines.push('', `## ${dayLabel(day.id, schedule.locale)}`);
 		for (const quadrant of populated) {
-			lines.push('', `### ${slotHeading(layout, quadrant.id, schedule.locale)}`);
+			lines.push('', slotHeadingLine(layout, quadrant.id, schedule.locale));
 			for (const task of quadrant.tasks) {
 				if (!hasTaskText(task)) {
 					continue;
@@ -459,4 +471,78 @@ export function serializeSchedule(schedule: WeekSchedule, layout: SlotLayout): s
 
 	lines.push('');
 	return lines.join('\n');
+}
+
+/**
+ * A week's file with its cell headings renamed to what the layout calls them,
+ * and every other line of it left exactly as it was.
+ *
+ * Answering as text rather than writing, because the same call has to do two
+ * jobs: say whether a file would change (and by how much) before anything is
+ * touched, and make the change itself. A file already reading the way it should
+ * comes back byte for byte, so a second pass over a vault reports nothing.
+ *
+ * Narrower than a week is read, on purpose. A week written before a cell was
+ * renamed or removed is *read* correctly as it stands — the old wording resolves
+ * through the layout either way — so this changes nothing about what the board
+ * shows. What it is for is making a vault consistent, which is what lets a week
+ * be read by a version that has forgotten the old wordings.
+ *
+ * Only a `### ` line standing under a day is a cell heading, and only those are
+ * rewritten. A `### ` inside the week's review is one of its items, and one
+ * before any `## ` line belongs to whatever else the user keeps in the file.
+ * A heading no cell answers to is left alone: the plugin has no better wording
+ * for it than the one its author chose.
+ *
+ * `fileLocale` is the language of the file rather than the interface, so a week
+ * written in Chinese keeps Chinese headings however the reader has the app set.
+ */
+export function rewriteSlotHeadings(
+	content: string,
+	layout: SlotLayout,
+	fileLocale: Locale,
+): { text: string; changed: number } {
+	const lines = content.split(/\r?\n/);
+	/** Whether the lines below sit in the week's review rather than in a day. */
+	let inReview = false;
+	/** Whether a day heading is open, which is what makes a cell heading one. */
+	let underDay = false;
+	let changed = 0;
+
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index] ?? '';
+		const heading = classifyHeading(line, layout, inReview);
+		if (heading === null) {
+			continue;
+		}
+		switch (heading.kind) {
+			case 'reviewTitle':
+				inReview = true;
+				underDay = false;
+				break;
+			case 'day':
+				// A `##` naming no day — including the review's own heading, which
+				// was answered above — closes whatever was open, so nothing under it
+				// is a cell.
+				inReview = false;
+				underDay = heading.day !== null;
+				break;
+			case 'reviewSection':
+				// A section keeps the review open and opens no cell of its own.
+				break;
+			case 'slot': {
+				if (!underDay || heading.match === null) {
+					break;
+				}
+				const next = slotHeadingLine(layout, heading.match.id, fileLocale);
+				if (next !== line) {
+					lines[index] = next;
+					changed += 1;
+				}
+				break;
+			}
+		}
+	}
+
+	return { text: lines.join('\n'), changed };
 }

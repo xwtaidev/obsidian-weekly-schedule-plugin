@@ -142,6 +142,8 @@ check(
 		'migrate.result',
 		'migrate.pendingFiles',
 		'migrate.movedFiles',
+		'migrate.slots.pending',
+		'migrate.slots.changed',
 		'year.weeksDone',
 		'year.tasksTotal',
 		'board.stats.tasks',

@@ -41,7 +41,7 @@ import {
 } from '../../src/slots';
 import type { SlotLayout } from '../../src/slots';
 import { syncLocale } from '../../src/i18n/index';
-import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import { parseSchedule, rewriteSlotHeadings, serializeSchedule } from '../../src/markdown';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../../src/settings';
 import type { DayId, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
 
@@ -777,6 +777,99 @@ check(
 		normalizeSettings({ taskCommitKey: 'tab' }).taskCommitKey,
 	],
 	[DEFAULT_SETTINGS.folder, DEFAULT_SETTINGS.weekStartsOn, DEFAULT_SETTINGS.taskCommitKey],
+);
+
+// --- bringing a vault's headings up to date ---------------------------------
+// The one operation that rewrites a file the user did not open. It is offered
+// rather than needed — a week written before a cell was renamed goes on being
+// read correctly — so the assertions are about what it must *not* touch: every
+// line but a cell heading, every heading that stands outside a day, and the
+// work under them all.
+
+/** The lines two texts disagree on, as `line: before -> after`. */
+function differingLines(before: string, after: string): string[] {
+	const a = before.split('\n');
+	const b = after.split('\n');
+	const differences: string[] = [];
+	for (let at = 0; at < Math.max(a.length, b.length); at += 1) {
+		if (a[at] !== b[at]) {
+			differences.push(
+				`${at + 1}: ${JSON.stringify(a[at] ?? '<eof>')} -> ${JSON.stringify(b[at] ?? '<eof>')}`,
+			);
+		}
+	}
+	return differences;
+}
+
+const alignedZh = rewriteSlotHeadings(FOUR_CELLS_ZH, DEFAULT_SLOT_LAYOUT, 'zh');
+const alignedEn = rewriteSlotHeadings(FOUR_CELLS_EN, DEFAULT_SLOT_LAYOUT, 'en');
+check(
+	'a week that already names its cells the way the layout does is left byte for byte',
+	[
+		[alignedZh.text === FOUR_CELLS_ZH, alignedZh.changed],
+		[alignedEn.text === FOUR_CELLS_EN, alignedEn.changed],
+	],
+	[
+		[true, 0],
+		[true, 0],
+	],
+);
+
+// One cell left, and everything folded into it. The week below carries the three
+// kinds of `### ` line that are not a cell of a day: one under the review, one
+// under a `##` that names no day, and one no cell answers to.
+const MERGED = layout([cell('q3', '杂事')], { q1: 'q3', q2: 'q3', q4: 'q3' });
+const STALE_WEEK =
+	'# 2026-W12\n\n## 周一\n\n### 重要 · 紧急\n- [ ] A\n\n### 不重要 · 紧急\n- [ ] B\n\n### 不认得的标题\n这不是任务\n\n## 复盘\n\n### 重要 · 不紧急\n- 一句话\n';
+const staleAligned = rewriteSlotHeadings(STALE_WEEK, MERGED, 'zh');
+
+check(
+	'aligning a week renames its cell headings and nothing else',
+	[differingLines(STALE_WEEK, staleAligned.text), staleAligned.changed],
+	[
+		['5: "### 重要 · 紧急" -> "### 杂事"', '8: "### 不重要 · 紧急" -> "### 杂事"'],
+		2,
+	],
+);
+check(
+	'... leaving a heading under the review alone, even where a cell answers to it',
+	staleAligned.text.includes('### 重要 · 不紧急'),
+	true,
+);
+check(
+	'... and leaving a heading no cell answers to alone as well',
+	staleAligned.text.includes('### 不认得的标题'),
+	true,
+);
+check(
+	'... with the work of the week untouched, in the cell that answers for it now',
+	[allTasks(read(staleAligned.text, MERGED)), tasks(read(staleAligned.text, MERGED), 'mon', 'q3')],
+	[['A', 'B'], [' :A', ' :B']],
+);
+
+const staleTwice = rewriteSlotHeadings(staleAligned.text, MERGED, 'zh');
+check(
+	'aligning a week twice is aligning it once',
+	[staleTwice.text === staleAligned.text, staleTwice.changed],
+	[true, 0],
+);
+
+const NOT_A_WEEK =
+	'---\ntags: [week]\n---\n\n# 2026-W12\n\n## 周一\n\n### 重要 · 紧急\n- [ ] A\n\n## 随笔\n\n### 重要 · 不紧急\n- 不是任务\n';
+const notAWeekAligned = rewriteSlotHeadings(NOT_A_WEEK, MERGED, 'zh');
+check(
+	'a heading under a `##` that names no day is not a cell, and is left alone',
+	[differingLines(NOT_A_WEEK, notAWeekAligned.text), notAWeekAligned.changed],
+	[['9: "### 重要 · 紧急" -> "### 杂事"'], 1],
+);
+
+use('en');
+const alignedForEn = rewriteSlotHeadings(FOUR_CELLS_EN, DEFAULT_SLOT_LAYOUT, 'zh');
+use('zh');
+check(
+	'a week is renamed in the language it is written in, whatever the interface says',
+	alignedForEn.text.includes('### 重要 · 紧急'),
+	true,
 );
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);

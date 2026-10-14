@@ -97,6 +97,10 @@ export const zh: Translations = {
 	'migrate.movedFiles': '周计划：已移动 {count} 个文件到 {years} 文件夹。',
 	'migrate.result': '周计划：已整理 {count} 个文件到年份文件夹。',
 	'migrate.resultPartial': '周计划：已移动 {moved} 个，失败 {failed} 个。详见开发者控制台。',
+	'migrate.slots.none': '周计划：每周文件里的格子标题都已与你现在的命名一致。',
+	'migrate.slots.pending': '周计划：还有 {count} 个周文件在用旧的格子标题。',
+	'migrate.slots.changed': '周计划：已把 {count} 个周文件里的格子标题改成现在的命名。',
+	'migrate.slots.partial': '周计划：已对齐 {files} 个，失败 {failed} 个。详见开发者控制台。',
 
 	'carry.none': '周计划：上周没有需要带入的未完成项。',
 	'carry.result': '周计划：已把 {from} 的 {count} 项未完成带入 {to}。',

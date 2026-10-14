@@ -147,6 +147,16 @@ export const en = {
 		'Weekly schedule: moved {count} file into year folders.|Weekly schedule: moved {count} files into year folders.',
 	'migrate.resultPartial':
 		'Weekly schedule: moved {moved}, failed {failed}. See the developer console.',
+	// Bringing the headings of every week in the vault up to date with the cells
+	// the user has now. A week is never unreadable without this — the wordings
+	// it already uses go on resolving — so this is offered, not demanded.
+	'migrate.slots.none': 'Weekly schedule: every week already names its cells the way you do.',
+	'migrate.slots.pending':
+		'Weekly schedule: {count} week file still names its cells the old way.|Weekly schedule: {count} week files still name their cells the old way.',
+	'migrate.slots.changed':
+		'Weekly schedule: renamed the cells in {count} week file.|Weekly schedule: renamed the cells in {count} week files.',
+	'migrate.slots.partial':
+		'Weekly schedule: aligned {files}, failed {failed}. See the developer console.',
 
 	// Carrying the previous week's unfinished tasks into the week on screen. The
 	// two counted strings differ only in whether anything was already there.
