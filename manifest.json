@@ -1,7 +1,7 @@
 {
 	"id": "weekly-schedule",
 	"name": "Weekly Schedule",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"minAppVersion": "1.5.7",
 	"description": "Plan each week in one to eight priority cells you name yourself, stored as plain Markdown you can edit by hand.",
 	"author": "xwtaidev",
