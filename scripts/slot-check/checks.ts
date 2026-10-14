@@ -14,7 +14,10 @@
  *   unnamed cell follows the file's language;
  * - a layout that cannot be honoured — no cells, two cells sharing a key or a
  *   name, a removal pointing at nothing or looping — is refused, with one code
- *   per failure, in a fixed order.
+ *   per failure, in a fixed order;
+ * - a stored settings object, whatever an older version or a hand-edit left in
+ *   it, arrives as cells that can be used, with nothing lost that could be
+ *   honoured and nothing shared with the defaults.
  *
  * Run with `npm run check:slots`. The Obsidian stand-in is shared with
  * `npm run check:i18n`.
@@ -32,12 +35,14 @@ import {
 	buildSlotLayout,
 	nextSlotId,
 	normalizeHeading,
+	normalizeSlotConfig,
 	slotHeading,
 	validateSlots,
 } from '../../src/slots';
 import type { SlotLayout } from '../../src/slots';
 import { syncLocale } from '../../src/i18n/index';
 import { parseSchedule, serializeSchedule } from '../../src/markdown';
+import { DEFAULT_SETTINGS, normalizeSettings } from '../../src/settings';
 import type { DayId, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
 
 const WEEK_START = '2026-03-16';
@@ -499,6 +504,279 @@ check(
 	'cells are written in the order the layout holds them',
 	reorderedText.indexOf('### 不重要 · 紧急') < reorderedText.indexOf('### 重要 · 紧急'),
 	true,
+);
+
+// --- what a stored settings object is allowed to say -----------------------
+// A settings file is data rather than code: it can be older than the fields
+// being read out of it, written by hand, or left half written. These are the
+// rules that turn whatever it holds into cells that can be used — and the point
+// of every one of them is that nothing which *can* be honoured is dropped.
+
+check(
+	'a settings object with no cells in it gets the four the plugin ships with',
+	shape(normalizeSlotConfig({}).slots),
+	['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+);
+check(
+	'... and an old settings file, which has no such field at all, is the same thing',
+	shape(normalizeSlotConfig({ folder: 'weekly-schedule', weekStartsOn: 1, taskCommitKey: 'enter' }).slots),
+	['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+);
+check(
+	'... as is a file whose cells are not a list at all',
+	['nonsense', 42, null, []].map((value) => shape(normalizeSlotConfig({ slots: value }).slots)),
+	[
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+	],
+);
+
+// The trap this whole function exists for: `Object.assign({}, DEFAULT_SETTINGS,
+// loaded)` would have handed the defaults themselves to whoever asked, so one
+// pane editing a cell would have edited it for every pane, for every later
+// load, and for the rest of the session.
+const fallbackA = normalizeSlotConfig({}).slots;
+const fallbackB = normalizeSlotConfig({}).slots;
+check(
+	'the four defaults are copied, not handed out',
+	[fallbackA === DEFAULT_SLOTS, fallbackA[0] === DEFAULT_SLOTS[0], fallbackA === fallbackB],
+	[false, false, false],
+);
+fallbackA[0].name = '深度工作';
+fallbackA.push(cell('s1', '甲'));
+check(
+	'... so editing what was loaded leaves the defaults as they were',
+	[shape(DEFAULT_SLOTS), DEFAULT_SLOTS.length],
+	[
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+		4,
+	],
+);
+
+check(
+	'an entry that is not a cell is dropped and the rest are kept',
+	[shape(normalizeSlotConfig({ slots: [cell('q1'), null, 'x', cell('q2', '沟通'), 42] }).slots)],
+	[['q1:0:-', 'q2:0:沟通']],
+);
+check(
+	'a cell without an id is not a cell, and the ones with ids are unaffected',
+	shape(normalizeSlotConfig({ slots: [{ name: '深' }, { id: '   ' }, cell('s1', '甲', 4)] }).slots),
+	['s1:4:甲'],
+);
+check(
+	'a stored id is trimmed, so a stray space cannot make it unreachable',
+	shape(normalizeSlotConfig({ slots: [{ id: ' q1 ', name: null, tone: 0 }] }).slots),
+	['q1:0:-'],
+);
+check(
+	'of two cells sharing an id the first is the cell',
+	shape(normalizeSlotConfig({ slots: [cell('q1', '甲'), cell('q1', '乙')] }).slots),
+	['q1:0:甲'],
+);
+check(
+	'a colour the palette has is kept, whatever position the cell is in',
+	shape(normalizeSlotConfig({ slots: [cell('s1', '甲', 5), cell('s2', '乙', 0)] }).slots),
+	['s1:5:甲', 's2:0:乙'],
+);
+check(
+	'a colour the palette does not have becomes the cell\'s own position',
+	normalizeSlotConfig({
+		slots: [cell('q1', null, 99), cell('q2', null, -1), cell('q3', null, 1.5), cell('q4', null, 'red')],
+	}).slots.map((slot) => slot.tone),
+	[0, 1, 2, 3],
+);
+check(
+	'a name is trimmed, and one of nothing but spaces is no name at all',
+	normalizeSlotConfig({
+		slots: [
+			{ id: 's1', name: '  深度工作  ', tone: 0 },
+			{ id: 's2', name: '   ', tone: 1 },
+			{ id: 'q1', name: 42, tone: 2 },
+		],
+	}).slots.map((slot) => slot.name),
+	['深度工作', null, null],
+);
+check(
+	'settings that hold nothing usable still leave a board that can be drawn',
+	normalizeSlotConfig({ slots: [], retiredSlots: 'nonsense' }),
+	{ slots: normalizeSlotConfig({}).slots, retiredSlots: {} },
+);
+
+// A removal is read by following it to a cell the layout has, so a removal that
+// never arrives there is reading nothing either way; keeping it would only stop
+// the id being handed out again.
+check(
+	'a removal that still leads to a cell is kept as it stands',
+	normalizeSlotConfig({ slots: [cell('q2')], retiredSlots: { q3: 'q1', q1: 'q2' } }).retiredSlots,
+	{ q3: 'q1', q1: 'q2' },
+);
+check(
+	'a removal pointing at nothing is dropped, and one pointing at a cell is not',
+	normalizeSlotConfig({ slots: [cell('s1', '甲')], retiredSlots: { q1: 'q2', q3: 's1', q4: 'q9' } })
+		.retiredSlots,
+	{ q3: 's1' },
+);
+check(
+	'two removals pointing at each other are both dropped',
+	normalizeSlotConfig({ slots: [cell('s1', '甲')], retiredSlots: { q1: 'q2', q2: 'q1', q3: 's1' } })
+		.retiredSlots,
+	{ q3: 's1' },
+);
+check(
+	'a removal that points at itself leads nowhere',
+	normalizeSlotConfig({ slots: [cell('s1', '甲')], retiredSlots: { q4: 'q4', q3: 's1' } })
+		.retiredSlots,
+	{ q3: 's1' },
+);
+check(
+	'a removal whose id is a cell again can never be read, so it goes',
+	normalizeSlotConfig({ slots: [cell('q1'), cell('q2')], retiredSlots: { q2: 'q1', q3: 'q1' } })
+		.retiredSlots,
+	{ q3: 'q1' },
+);
+check(
+	'a removal is judged against the cells that survived, not the ones asked for',
+	normalizeSlotConfig({ slots: [cell('q1'), cell('q1', '乙')], retiredSlots: { q2: 's9', q3: 'q1' } })
+		.retiredSlots,
+	{ q3: 'q1' },
+);
+check(
+	'a settings file with no removals at all is not an error',
+	[
+		normalizeSlotConfig({}).retiredSlots,
+		normalizeSlotConfig({ retiredSlots: null }).retiredSlots,
+		normalizeSlotConfig({ retiredSlots: { q1: 42 } }).retiredSlots,
+	],
+	[{}, {}, {}],
+);
+
+// The claim the whole feature rests on, made about the shape an upgrading vault
+// actually has: a settings file written before cells were configurable.
+const UPGRADED = (() => {
+	const { slots, retiredSlots } = normalizeSlotConfig({
+		folder: 'weekly-schedule',
+		weekStartsOn: 1,
+		taskCommitKey: 'enter',
+	});
+	return buildSlotLayout(slots, retiredSlots);
+})();
+check(
+	'a vault that upgrades and configures nothing reads a week as the bytes it has',
+	save(read(FOUR_CELLS_ZH, UPGRADED), UPGRADED),
+	FOUR_CELLS_ZH,
+);
+check(
+	'... in either language, and in the older wordings it wrote itself',
+	[
+		save(read(FOUR_CELLS_EN, UPGRADED), UPGRADED) === FOUR_CELLS_EN,
+		[
+			'重要 紧急',
+			'urgent and important',
+			'not important but urgent',
+			'重要 · 不紧急',
+		].map((wording) =>
+			UPGRADED.heading(wording)?.id,
+		),
+	],
+	[true, ['q1', 'q1', 'q2', 'q3']],
+);
+
+// A configured vault, read through the same path the plugin uses to load it.
+const CONFIGURED = (() => {
+	const { slots, retiredSlots } = normalizeSlotConfig({
+		slots: [
+			{ id: 'q1', name: ' 深度工作 ', tone: 99 },
+			{ id: 'q3', name: '杂事', tone: 1 },
+		],
+		retiredSlots: { q2: 'q1', q4: 'q3', q9: 'nope' },
+	});
+	return { slots, retiredSlots, layout: buildSlotLayout(slots, retiredSlots) };
+})();
+check(
+	'a configured vault loads as the cells it describes',
+	[shape(CONFIGURED.slots), CONFIGURED.retiredSlots],
+	[['q1:0:深度工作', 'q3:1:杂事'], { q2: 'q1', q4: 'q3' }],
+);
+check(
+	'... and reads every task of a four-cell week into one of them',
+	allTasks(read(FOUR_CELLS_ZH, CONFIGURED.layout)),
+	['A', 'B', 'C', 'D'],
+);
+check(
+	'... with the wording each cell answers to now',
+	['深度工作', '杂事'].map((wording) => CONFIGURED.layout.heading(wording)?.id),
+	['q1', 'q3'],
+);
+
+// --- the same rules, reached the way the plugin reaches them ----------------
+// `normalizeSettings` is what `loadSettings` calls, and it stands where a
+// shallow `Object.assign({}, DEFAULT_SETTINGS, loaded)` used to. That assign
+// would have handed out the defaults themselves: `slots` is an array, so the
+// settings a vault loaded and the defaults it fell back to would have been the
+// same array, and one pane editing a cell would have edited it for every pane,
+// for every vault loaded later in that session, and for the rest of the run.
+// The mutation below is the tripwire — it leaves the defaults alone only if the
+// cells were copied.
+
+const loadedOnce = normalizeSettings(undefined);
+const loadedTwice = normalizeSettings(null);
+check(
+	'a store with nothing in it loads as the four built-in cells',
+	shape(loadedOnce.slots),
+	['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+);
+check(
+	'... and so does a data.json from before cells were configurable',
+	shape(
+		normalizeSettings(
+			JSON.parse('{"folder":"weekly-schedule","weekStartsOn":1,"taskCommitKey":"enter"}'),
+		).slots,
+	),
+	['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+);
+check(
+	'... and a file whose cells are nonsense loads as the four rather than refusing to load',
+	shape(normalizeSettings({ slots: 'nonsense', retiredSlots: 42 }).slots),
+	['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+);
+check(
+	'two loads are two sets of cells, and neither is the default',
+	[
+		loadedOnce.slots === loadedTwice.slots,
+		loadedOnce.slots === DEFAULT_SETTINGS.slots,
+		loadedOnce.slots[0] === DEFAULT_SLOTS[0],
+	],
+	[false, false, false],
+);
+loadedOnce.slots[0].name = '深度工作';
+loadedOnce.slots.push(cell('s1', '甲'));
+check(
+	'... so editing what a vault loaded leaves the defaults as they were',
+	[shape(DEFAULT_SETTINGS.slots), DEFAULT_SLOTS.length],
+	[
+		['q1:0:-', 'q2:1:-', 'q3:2:-', 'q4:3:-'],
+		4,
+	],
+);
+check(
+	'a stored setting of the right type is kept, and zero is a value',
+	[
+		normalizeSettings({ folder: 'work/weeks' }).folder,
+		normalizeSettings({ weekStartsOn: 0 }).weekStartsOn,
+		normalizeSettings({ taskCommitKey: 'shiftEnter' }).taskCommitKey,
+	],
+	['work/weeks', 0, 'shiftEnter'],
+);
+check(
+	'a stored setting of the wrong type falls back rather than being trusted',
+	[
+		normalizeSettings({ folder: 42 }).folder,
+		normalizeSettings({ weekStartsOn: 'x' }).weekStartsOn,
+		normalizeSettings({ taskCommitKey: 'tab' }).taskCommitKey,
+	],
+	[DEFAULT_SETTINGS.folder, DEFAULT_SETTINGS.weekStartsOn, DEFAULT_SETTINGS.taskCommitKey],
 );
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);

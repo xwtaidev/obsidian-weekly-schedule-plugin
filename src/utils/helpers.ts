@@ -15,6 +15,18 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Whether a value is a plain object: something fields can be read off, as
+ * opposed to an array, a scalar, or null.
+ *
+ * Used where data comes from a file rather than from code — a stored settings
+ * object is shaped like whatever last wrote it, and reading `value.id` off a
+ * number is a runtime error rather than the `undefined` a type would promise.
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
  * Coalesces bursts of calls into one trailing invocation, which keeps file
  * writes off the keystroke path.
  */

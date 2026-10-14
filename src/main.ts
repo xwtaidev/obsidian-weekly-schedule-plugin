@@ -6,11 +6,7 @@ import {
 	VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
 } from './constants';
 import { getLocale, getLocaleRevision, syncLocale, t, tp } from './i18n';
-import {
-	DEFAULT_SETTINGS,
-	WeeklyScheduleSettings,
-	WeeklyScheduleSettingTab,
-} from './settings';
+import { WeeklyScheduleSettingTab, normalizeSettings } from './settings';
 import {
 	applyYearFolders,
 	describeYearFolderMove,
@@ -26,7 +22,7 @@ import {
 	previousDayId,
 } from './carry-over';
 import { ScheduleStore } from './store';
-import { DEFAULT_SLOT_LAYOUT } from './slots';
+import { DEFAULT_SLOT_LAYOUT, buildSlotLayout } from './slots';
 import { CarryOverModal } from './ui/carry-over-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
@@ -36,8 +32,10 @@ import { watchDayChange } from './utils/day-watch';
 import type { Command, IconName, TAbstractFile, WorkspaceLeaf } from 'obsidian';
 import type { CarryOverItem } from './carry-over';
 import type { TranslationKey } from './i18n';
+import type { WeeklyScheduleSettings } from './settings';
 import type { Moment } from './utils/date';
 import type { SlotLayout } from './slots';
+import type { RetiredSlots, Slot } from './types';
 
 /**
  * Redraws a view's tab title after a language change.
@@ -69,9 +67,11 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 * The cells a day has, and what each one answers to.
 	 *
 	 * Held rather than derived on every use, because a week is read and written
-	 * many times while nothing about the cells has changed. A vault nobody has
-	 * configured keeps the four built-in quadrants, which is what every read and
-	 * every write uses until there is a tab to change them from.
+	 * many times while nothing about the cells has changed. `rebuildLayout` is
+	 * the only thing that replaces it, and it is called from exactly two places:
+	 * once when the settings are loaded, and once when the settings tab changes
+	 * the cells. Everything that reads or writes a week takes its layout from
+	 * here, so there is one answer to what a cell is rather than one per caller.
 	 */
 	private layout: SlotLayout = DEFAULT_SLOT_LAYOUT;
 
@@ -516,6 +516,54 @@ export default class WeeklySchedulePlugin extends Plugin {
 	}
 
 	/**
+	 * Takes a new set of cells, and makes every open surface agree with it.
+	 *
+	 * The order is the whole of this method, and each step is there because
+	 * leaving it out moves work between cells:
+	 *
+	 * 1. what is on the board but still only in the DOM is committed, so it is
+	 *    part of the week rather than lost when the board is redrawn;
+	 * 2. the store is emptied *while the old layout is still in force*, so every
+	 *    pending week is written under the headings it was read with;
+	 * 3. only then do the settings change, and the layout with them;
+	 * 4. they are saved, and the board redraws under the new layout.
+	 *
+	 * Step 2 is the one that is easy to leave out and hard to notice. An edit
+	 * starts a timer that writes the week when it fires, and flushing does not
+	 * cancel the timer — so a week edited before the change would be written
+	 * *after* it, in a shape nobody asked for and nobody touched. Emptying the
+	 * store is what stops that: the write finds nothing to write.
+	 *
+	 * Called by the settings tab, which is the only thing that changes a layout.
+	 */
+	async applySlotChange(slots: readonly Slot[], retiredSlots: RetiredSlots): Promise<void> {
+		const view = this.viewOf();
+		await view?.commitPendingEdits();
+		await this.store.invalidate();
+		// Copied, so the settings own their cells: a caller that went on editing
+		// the array it passed would otherwise be editing what is saved.
+		this.settings.slots = slots.map((slot) => ({ ...slot }));
+		this.settings.retiredSlots = { ...retiredSlots };
+		this.rebuildLayout();
+		await this.saveSettings();
+		await view?.refresh();
+		await this.yearViewOf()?.refresh();
+	}
+
+	/**
+	 * Rebuilds the layout from the settings, which are the only thing that
+	 * describes a cell.
+	 *
+	 * Called when the settings are loaded and when the cells change, and never
+	 * in between, because the two halves have to move together: a read made
+	 * against one layout and a write made against another is a week rewritten
+	 * into a shape it was not read in.
+	 */
+	private rebuildLayout(): void {
+		this.layout = buildSlotLayout(this.settings.slots, this.settings.retiredSlots);
+	}
+
+	/**
 	 * The cells a day has, and what each one answers to.
 	 *
 	 * Every reader and writer takes its layout from here — the store, the views,
@@ -577,11 +625,8 @@ export default class WeeklySchedulePlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<WeeklyScheduleSettings>,
-		);
+		this.settings = normalizeSettings(await this.loadData());
+		this.rebuildLayout();
 	}
 
 	async saveSettings() {

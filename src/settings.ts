@@ -1,10 +1,11 @@
 import { PluginSettingTab, Setting } from 'obsidian';
-import { DEFAULT_FOLDER, WEEK_START_OPTIONS } from './constants';
+import { DEFAULT_FOLDER, DEFAULT_SLOTS, WEEK_START_OPTIONS } from './constants';
 import { dayLabel, t } from './i18n';
-import { normalizeFolder } from './utils/helpers';
+import { normalizeSlotConfig } from './slots';
+import { isRecord, normalizeFolder } from './utils/helpers';
 import type { App } from 'obsidian';
 import type { TranslationKey } from './i18n';
-import type { TaskCommitKey } from './types';
+import type { RetiredSlots, Slot, TaskCommitKey } from './types';
 import type WeeklySchedulePlugin from './main';
 
 export interface WeeklyScheduleSettings {
@@ -17,13 +18,73 @@ export interface WeeklyScheduleSettings {
 	 * the other Enter has to be free to start one.
 	 */
 	taskCommitKey: TaskCommitKey;
+	/**
+	 * The cells a day has, in the order the board draws them — one to eight of
+	 * them, and never none.
+	 *
+	 * This is the one setting that decides what a week's *file* looks like, so
+	 * it is the one that has to be changed in the right order; see
+	 * `WeeklySchedulePlugin.applySlotChange`.
+	 */
+	slots: Slot[];
+	/**
+	 * Where the work of a removed cell went, as `removed id → the cell that took
+	 * over`. Kept for ever: it is what reads a week written before the cell was
+	 * removed, and the heading in that week still names the id.
+	 */
+	retiredSlots: RetiredSlots;
 }
 
+/**
+ * What a vault has before any of it is configured.
+ *
+ * **Copied, never handed out as it stands.** `slots` is the first reference
+ * type in these settings, so a caller given this object directly would share
+ * its array with every other caller — and a settings tab that reordered a cell
+ * would reorder the default for the rest of the session, in every pane. Build
+ * settings with `normalizeSettings`, which always answers with its own array.
+ */
 export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
 	folder: DEFAULT_FOLDER,
 	weekStartsOn: 1,
 	taskCommitKey: 'enter',
+	slots: DEFAULT_SLOTS.map((slot) => ({ ...slot })),
+	retiredSlots: {},
 };
+
+/**
+ * Settings as they should be used, from whatever `loadData()` returned.
+ *
+ * The one place settings are built, so that everything downstream can trust the
+ * shape it is handed — where `Object.assign({}, DEFAULT_SETTINGS, loaded)` used
+ * to stand, and could not: it copies arrays and objects *by reference*, so the
+ * settings a vault loaded and the defaults they fell back to would have been
+ * the same array, and one pane editing a cell would edit it for every pane and
+ * for every vault opened afterwards in that session.
+ *
+ * The two structured fields go through `normalizeSlotConfig`, which is the rule
+ * for what a file may say about cells; the scalars are read the way a shallow
+ * assign read them — present and of the right type wins, missing or nonsensical
+ * falls back to the default. A field of the wrong type is not trusted as a
+ * near-miss: a settings file is data, and a `taskCommitKey` of `42` means the
+ * key the plugin knows rather than one the inline editor has never heard of.
+ */
+export function normalizeSettings(stored: unknown): WeeklyScheduleSettings {
+	const file: Record<string, unknown> = isRecord(stored) ? stored : {};
+	const { slots, retiredSlots } = normalizeSlotConfig(file);
+	const taskCommitKey = file.taskCommitKey;
+	return {
+		folder: typeof file.folder === 'string' ? file.folder : DEFAULT_SETTINGS.folder,
+		weekStartsOn:
+			typeof file.weekStartsOn === 'number' ? file.weekStartsOn : DEFAULT_SETTINGS.weekStartsOn,
+		taskCommitKey:
+			typeof taskCommitKey === 'string' && isTaskCommitKey(taskCommitKey)
+				? taskCommitKey
+				: DEFAULT_SETTINGS.taskCommitKey,
+		slots,
+		retiredSlots,
+	};
+}
 
 /**
  * The two Enter keystrokes, in the order the dropdown offers them, each with the

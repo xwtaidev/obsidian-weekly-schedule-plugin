@@ -26,6 +26,7 @@
 import {
 	BUILT_IN_SLOTS,
 	DAY_IDS,
+	DEFAULT_SLOTS,
 	LEGACY_QUADRANT_HEADINGS,
 	REVIEW_SECTIONS,
 	SLOT_LIMITS,
@@ -39,6 +40,7 @@ import {
 	reviewSectionLabel,
 	reviewTitle,
 } from './i18n';
+import { isRecord } from './utils/helpers';
 import type { Locale } from './i18n';
 import type { BuiltInSlot, QuadrantId, RetiredSlots, Slot } from './types';
 
@@ -483,4 +485,149 @@ export function nextSlotId(slots: readonly Slot[], retired: RetiredSlots): strin
 		n += 1;
 	}
 	return `s${n}`;
+}
+
+/** The cells a stored settings file describes, and where the removed ones went. */
+export interface SlotConfig {
+	slots: Slot[];
+	retiredSlots: RetiredSlots;
+}
+
+/**
+ * One cell read off a settings file, or `null` when the entry is not a cell at
+ * all.
+ *
+ * `fallbackTone` is used when the stored colour is not one the palette has: the
+ * cell's position, which is the colour a cell that was never given one of its
+ * own would have had. An id is the one field that cannot be replaced — a cell
+ * without one cannot be reached by anything — so an entry that has no usable id
+ * is not a cell and is dropped rather than guessed at.
+ */
+function readSlot(value: unknown, fallbackTone: number): Slot | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+	const id = typeof value.id === 'string' ? value.id.trim() : '';
+	if (id.length === 0) {
+		return null;
+	}
+	const name = typeof value.name === 'string' ? value.name.trim() : '';
+	const tone = value.tone;
+	return {
+		id,
+		name: name.length > 0 ? name : null,
+		tone:
+			typeof tone === 'number' && Number.isInteger(tone) && tone >= 0 && tone < TONE_COUNT
+				? tone
+				: fallbackTone,
+	};
+}
+
+/**
+ * The cells a settings file holds, made safe to use.
+ *
+ * A stored settings object is data rather than code: it can be older than the
+ * fields being read out of it, written by hand, or left half written by a
+ * crash. So a value that cannot be honoured is *replaced* — an entry that is not
+ * a cell is dropped, a colour off the palette becomes the cell's position, a
+ * name of nothing but spaces becomes no name at all — while every value that can
+ * be honoured is kept exactly as it was. Nothing is invented beyond that: a cell
+ * whose colour cannot be read is still a cell, and the first cell is still the
+ * first.
+ *
+ * Of two cells sharing an id the first is kept. The second can never be reached
+ * by a heading or by a week, so keeping it would only put a row in the settings
+ * tab that no file could ever name.
+ *
+ * A layout left with no cells at all — no list, an empty list, every entry
+ * unreadable — falls back to the four the plugin ships with. That is the one
+ * state the board cannot come back from on its own, and it is not a state the
+ * settings tab can produce: it will not remove the last cell.
+ *
+ * More cells than the board lays out well is *not* corrected. Those are the
+ * user's cells and dropping them here would hide their work; `validateSlots`
+ * reports it where it can be acted on instead.
+ */
+function readSlots(value: unknown): Slot[] {
+	const slots: Slot[] = [];
+	if (Array.isArray(value)) {
+		const seen = new Set<string>();
+		for (const entry of value) {
+			const slot = readSlot(entry, slots.length % TONE_COUNT);
+			if (slot !== null && !seen.has(slot.id)) {
+				seen.add(slot.id);
+				slots.push(slot);
+			}
+		}
+	}
+	return slots.length > 0 ? slots : DEFAULT_SLOTS.map((slot) => ({ ...slot }));
+}
+
+/**
+ * The record of removed cells, with the entries that no longer lead anywhere
+ * taken out.
+ *
+ * A removal is read by following it until it reaches a cell the layout has. An
+ * entry that never does — one pointing at nothing, or two pointing at each
+ * other — already resolves to nothing and so changes no week either way; what
+ * keeping it would do is stop `nextSlotId` from ever handing that id out again,
+ * which is a cost with no benefit.
+ *
+ * An entry whose id *is* a cell of the layout goes too, and more plainly: the
+ * layout answers for a cell it holds without consulting this record at all, so
+ * such an entry can never be read.
+ *
+ * Entries that do lead somewhere are kept exactly as they are, chains and all.
+ * Following one to the end is `resolve`'s job, and shortening the chains here
+ * would put a second answer to the same question in a second place.
+ */
+function readRetired(value: unknown, slots: readonly Slot[]): RetiredSlots {
+	if (!isRecord(value)) {
+		return {};
+	}
+
+	const present = new Set(slots.map((slot) => slot.id));
+	const candidates = new Map<string, string>();
+	for (const [from, to] of Object.entries(value)) {
+		if (typeof to === 'string' && to.length > 0 && !present.has(from)) {
+			candidates.set(from, to);
+		}
+	}
+
+	const kept: Record<string, string> = {};
+	for (const [from, to] of candidates) {
+		const walked = new Set<string>();
+		let current = from;
+		let reached = false;
+		while (!walked.has(current)) {
+			if (present.has(current)) {
+				reached = true;
+				break;
+			}
+			walked.add(current);
+			const next = candidates.get(current);
+			if (next === undefined) {
+				break;
+			}
+			current = next;
+		}
+		if (reached) {
+			kept[from] = to;
+		}
+	}
+	return kept;
+}
+
+/**
+ * The cells a stored settings object describes, and the removals that still
+ * mean something, as the one object every reader and writer wants.
+ *
+ * The removals are read *against the cells that survived*, which is why the two
+ * are answered together: an entry that would have led to a cell dropped as a
+ * duplicate leads nowhere now.
+ */
+export function normalizeSlotConfig(stored: unknown): SlotConfig {
+	const record = isRecord(stored) ? stored : {};
+	const slots = readSlots(record.slots);
+	return { slots, retiredSlots: readRetired(record.retiredSlots, slots) };
 }

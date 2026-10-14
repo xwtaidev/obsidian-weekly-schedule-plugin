@@ -3,9 +3,11 @@
  *
  * It implements exactly what the localization and Markdown modules touch:
  * `moment.locale()`, the handful of moment methods the date helpers call, and a
- * way to pretend the interface language is something else. It is a dev-tool
- * stand-in, not a moment implementation — anything it cannot do throws rather
- * than returning a plausible wrong answer.
+ * way to pretend the interface language is something else; plus the two classes
+ * a settings tab is declared with, so the module that holds the settings model
+ * can be loaded beside them. It is a dev-tool stand-in, not an Obsidian
+ * implementation — anything it cannot do throws rather than returning a
+ * plausible wrong answer, and that includes building a tab or a row.
  */
 
 let language = 'en';
@@ -13,6 +15,27 @@ let language = 'en';
 /** Sets the language `moment.locale()` reports, i.e. the app's language. */
 export function setStubLanguage(next: string): void {
 	language = next;
+}
+
+/**
+ * The base class a settings tab extends.
+ *
+ * Only its existence matters here: a tab is declared in the same file as the
+ * settings it edits, so the file has to be loadable, but a tab is never built
+ * outside the app. Constructing one throws rather than producing something that
+ * looks like a tab and is not.
+ */
+export class PluginSettingTab {
+	constructor() {
+		throw new Error('obsidian stub: a settings tab cannot be built outside the app');
+	}
+}
+
+/** A row of a settings tab. Never built here, for the same reason. */
+export class Setting {
+	constructor(_containerEl: unknown) {
+		throw new Error('obsidian stub: a settings row cannot be built outside the app');
+	}
 }
 
 type StartUnit = 'day' | 'year' | 'isoWeek';
