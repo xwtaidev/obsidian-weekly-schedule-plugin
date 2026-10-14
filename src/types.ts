@@ -1,17 +1,60 @@
 
 import type { Locale } from './i18n';
 
-/** The four Eisenhower priority quadrants, in display order (top to bottom). */
-export type QuadrantId = 'q1' | 'q2' | 'q3' | 'q4';
+/**
+ * Identifier of one priority cell of a day.
+ *
+ * It used to be one of exactly four quadrants, which is why the name says so;
+ * a cell is now whatever the user keeps in their layout, so an id is an opaque
+ * key rather than a fixed word. The four the plugin ships with keep the ids
+ * they have always had, and that is the whole of what makes a file written by
+ * an older version read back into the cell it came from.
+ */
+export type QuadrantId = string;
 
 /** One of the seven columns of the board. */
 export type DayId = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
-export interface QuadrantDefinition {
+/**
+ * A priority cell as the user has it set up: a key that never changes, a name
+ * of their own that may be missing, and the colour it is drawn in.
+ *
+ * The id is a key and nothing else. It is never shown and never written to a
+ * week's file — what a file says is the *heading* a cell answers to, which is
+ * either the user's name or the wording the plugin derives for one of its own
+ * cells. That is what keeps a cell nobody renamed reading and writing exactly
+ * as it did before cells became configurable.
+ */
+export interface Slot {
 	id: QuadrantId;
+	/** The user's own name for the cell; `null` keeps the built-in wording. */
+	name: string | null;
+	/** Which colour to draw it in, `0..TONE_COUNT-1`. */
+	tone: number;
+}
+
+/**
+ * A cell the plugin ships with, and the two flags its default wording is read
+ * off. The flags are not part of the model any more: they are what says a
+ * quadrant is `重要 · 紧急` rather than something the user typed, and they are
+ * the fixed point every historical heading is resolved against.
+ */
+export interface BuiltInSlot {
+	id: QuadrantId;
+	tone: number;
 	important: boolean;
 	urgent: boolean;
 }
+
+/**
+ * Cells that were removed, as `removed id → the cell that took over`.
+ *
+ * Nothing is ever taken out of this record, which is what lets a week written
+ * before a cell was removed go on being read: the heading still names the id,
+ * and the id still says where its work went. A chain is followed to its end,
+ * so removing two cells in turn is as correct as removing one.
+ */
+export type RetiredSlots = Readonly<Record<string, string>>;
 
 /**
  * A priority cell of one day. Wording is deliberately not stored: a label is

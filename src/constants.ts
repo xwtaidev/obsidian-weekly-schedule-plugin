@@ -1,12 +1,14 @@
 import type {
+	BuiltInSlot,
 	Day,
 	DayId,
 	Quadrant,
-	QuadrantDefinition,
 	QuadrantId,
 	ReviewSectionId,
+	Slot,
 	WeekReview,
 } from './types';
+import type { Locale } from './i18n';
 
 export const VIEW_TYPE_WEEKLY_SCHEDULE = 'weekly-schedule-view';
 
@@ -35,41 +37,103 @@ export const LOCALE_POLL_MS = 2000;
 export const DAY_POLL_MS = 30000;
 
 /**
- * Eisenhower quadrants, ordered exactly as they appear in the board:
+ * The cells the plugin ships with, in the order the board first drew them:
  * urgent first, important first within each urgency band.
  *
- * Wording lives in the locales (`quadrant.important` and friends) and is derived
- * from these flags, so the board and the file headings cannot drift apart.
+ * This is the fixed point the whole feature is built on. A cell's *default*
+ * wording is derived from these two flags and the language of the file being
+ * written (see `slotHeading`), and every heading any version of this plugin has
+ * ever written resolves through one of these ids — so the table can be added to
+ * but the four entries in it can never change. Setting a name on a cell, or
+ * removing one, is the user's business; what `重要 · 紧急` means is not.
+ *
+ * The tones are `0..3` and match the order, which is what keeps the board the
+ * colours it has always been after the layout becomes configurable.
  */
-export const QUADRANTS: readonly QuadrantDefinition[] = [
-	{ id: 'q1', important: true, urgent: true },
-	{ id: 'q2', important: false, urgent: true },
-	{ id: 'q3', important: true, urgent: false },
-	{ id: 'q4', important: false, urgent: false },
+export const BUILT_IN_SLOTS: readonly BuiltInSlot[] = [
+	{ id: 'q1', tone: 0, important: true, urgent: true },
+	{ id: 'q2', tone: 1, important: false, urgent: true },
+	{ id: 'q3', tone: 2, important: true, urgent: false },
+	{ id: 'q4', tone: 3, important: false, urgent: false },
 ];
 
 /** The seven columns of the board, in order. */
 export const DAY_IDS: readonly DayId[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-/** Quadrant ids in board order, for building the heading tables. */
-export const QUADRANT_IDS: readonly QuadrantId[] = QUADRANTS.map((quadrant) => quadrant.id);
+/**
+ * Aliases for the code that still reads the flags to compose a two-part label
+ * (the board's cell header, the carry-over popup). They are the same objects,
+ * so nothing can drift; those call sites print a cell's name instead once the
+ * layout is threaded through, and then these two go away.
+ */
+export const QUADRANTS: readonly BuiltInSlot[] = BUILT_IN_SLOTS;
+export const QUADRANT_IDS: readonly QuadrantId[] = BUILT_IN_SLOTS.map((slot) => slot.id);
 
-export function isQuadrantId(value: string): value is QuadrantId {
-	return QUADRANTS.some((quadrant) => quadrant.id === value);
-}
+/**
+ * The layout every vault starts with: the four built-in cells, none renamed.
+ *
+ * A cell's name is `null` rather than the wording it shows, and that is the
+ * point: a name is a fact about this vault and is written to the file, while
+ * `重要 · 紧急` is the plugin's own wording for one of its own quadrants and is
+ * derived afresh, in the language of the file it goes into, every time. A vault
+ * that never renames a cell therefore reads and writes the bytes it always did.
+ */
+export const DEFAULT_SLOTS: readonly Slot[] = BUILT_IN_SLOTS.map((slot) => ({
+	id: slot.id,
+	name: null,
+	tone: slot.tone,
+}));
+
+/** How many cells a layout may hold, and how long one of their names may be. */
+export const SLOT_LIMITS = { min: 1, max: 8, nameMax: 24 } as const;
+
+/** Colours a cell can be drawn in; see the `--ws-tone*` palette in styles.css. */
+export const TONE_COUNT = 8;
+
+/**
+ * Headings this plugin wrote before it was translated, accepted for ever so an
+ * existing vault is read unchanged. Each keeps its language, so such a file
+ * goes on being written the way it already was.
+ *
+ * These are already in the form `normalizeHeading` produces — lower case here,
+ * spaces where the separators were — and `check:slots` asserts it, because
+ * `slotHeading`/`buildSlotLayout` key the table by the normalized wording.
+ */
+export const LEGACY_QUADRANT_HEADINGS: readonly (readonly [string, QuadrantId, Locale])[] = [
+	['important and urgent', 'q1', 'en'],
+	['urgent and important', 'q1', 'en'],
+	['not important but urgent', 'q2', 'en'],
+	['urgent but not important', 'q2', 'en'],
+	['important but not urgent', 'q3', 'en'],
+	['not urgent but important', 'q3', 'en'],
+	['not important and not urgent', 'q4', 'en'],
+	['not urgent and not important', 'q4', 'en'],
+	['重要 紧急', 'q1', 'zh'],
+	['不重要 紧急', 'q2', 'zh'],
+	['重要 不紧急', 'q3', 'zh'],
+	['不重要 不紧急', 'q4', 'zh'],
+];
 
 export function isDayId(value: string): value is DayId {
 	return DAY_IDS.some((day) => day === value);
 }
 
-export function createQuadrant(definition: QuadrantDefinition): Quadrant {
-	return { id: definition.id, tasks: [] };
+export function createQuadrant(slot: { id: QuadrantId }): Quadrant {
+	return { id: slot.id, tasks: [] };
 }
 
-export function createEmptyDays(): Day[] {
+/**
+ * A week with nothing in it, with one cell per entry of `slots`.
+ *
+ * Built from the layout rather than from a fixed four, so the board, the reader
+ * and the writer all agree on which cells a day has — a week read from a file
+ * that mentions a cell the layout no longer has still gets that cell's work,
+ * because reading resolves the heading rather than looking the id up.
+ */
+export function createEmptyDays(slots: readonly Slot[] = DEFAULT_SLOTS): Day[] {
 	return DAY_IDS.map((id) => ({
 		id,
-		quadrants: QUADRANTS.map(createQuadrant),
+		quadrants: slots.map(createQuadrant),
 	}));
 }
 

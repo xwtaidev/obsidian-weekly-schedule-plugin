@@ -1,21 +1,18 @@
 import {
 	DAY_IDS,
-	QUADRANT_IDS,
-	QUADRANTS,
 	REVIEW_SECTIONS,
 	createEmptyDays,
 	createEmptyReview,
 	isDayId,
 } from './constants';
 import {
-	QUADRANT_SEPARATOR,
 	SUPPORTED_LOCALES,
 	dayLabel,
 	getLocale,
-	quadrantParts,
 	reviewSectionLabel,
 	reviewTitle,
 } from './i18n';
+import { DEFAULT_SLOT_LAYOUT, normalizeHeading, slotHeading } from './slots';
 import { createTaskId } from './utils/helpers';
 import type { Locale } from './i18n';
 import type {
@@ -57,56 +54,21 @@ interface HeadingMatch<Id> {
 	locale: Locale | null;
 }
 
-/** The heading a day or quadrant is written with, in one language. */
-function quadrantHeading(id: QuadrantId, locale: Locale): string {
-	const definition = QUADRANTS.find((item) => item.id === id);
-	if (!definition) {
-		return id;
-	}
-	return quadrantParts(definition.important, definition.urgent, locale).join(QUADRANT_SEPARATOR);
-}
-
 /**
  * Headings recognized when reading a file back, in every language, so a file
  * keeps parsing whichever language it was written in — including after the user
  * switches the interface language. Parsing stays heading based, so a hand-edited
  * file keeps working no matter which wording it uses.
+ *
+ * A cell is not in here. Which wording a cell answers to depends on what the
+ * user calls it and on what they removed, so that table is built from the
+ * layout instead (`slots.ts`), and this module asks it one heading at a time.
  */
 const DAY_HEADINGS = new Map<string, HeadingMatch<DayId>>();
-const QUADRANT_HEADINGS = new Map<string, HeadingMatch<QuadrantId>>();
 
 for (const locale of SUPPORTED_LOCALES) {
 	for (const id of DAY_IDS) {
 		DAY_HEADINGS.set(normalizeHeading(dayLabel(id, locale)), { id, locale });
-	}
-	for (const id of QUADRANT_IDS) {
-		QUADRANT_HEADINGS.set(normalizeHeading(quadrantHeading(id, locale)), { id, locale });
-	}
-}
-
-/**
- * Wordings this plugin used before it was translated, still accepted so an
- * existing vault is read unchanged. Each keeps its language, so such a file goes
- * on being written the way it already was.
- */
-const LEGACY_QUADRANT_HEADINGS: readonly (readonly [string, QuadrantId, Locale])[] = [
-	['important and urgent', 'q1', 'en'],
-	['urgent and important', 'q1', 'en'],
-	['not important but urgent', 'q2', 'en'],
-	['urgent but not important', 'q2', 'en'],
-	['important but not urgent', 'q3', 'en'],
-	['not urgent but important', 'q3', 'en'],
-	['not important and not urgent', 'q4', 'en'],
-	['not urgent and not important', 'q4', 'en'],
-	['重要 紧急', 'q1', 'zh'],
-	['不重要 紧急', 'q2', 'zh'],
-	['重要 不紧急', 'q3', 'zh'],
-	['不重要 不紧急', 'q4', 'zh'],
-];
-
-for (const [heading, id, locale] of LEGACY_QUADRANT_HEADINGS) {
-	if (!QUADRANT_HEADINGS.has(heading)) {
-		QUADRANT_HEADINGS.set(heading, { id, locale });
 	}
 }
 
@@ -127,15 +89,6 @@ for (const locale of SUPPORTED_LOCALES) {
 	for (const id of REVIEW_SECTIONS) {
 		REVIEW_HEADINGS.set(normalizeHeading(reviewSectionLabel(id, locale)), { id, locale });
 	}
-}
-
-function normalizeHeading(text: string): string {
-	return text
-		.replace(/[*_`]/g, '')
-		.replace(/[·・•]/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim()
-		.toLowerCase();
 }
 
 function createTask(text: string, done: boolean): Task {
@@ -286,8 +239,16 @@ export function parseSchedule(
 				fileLocale ??= section.locale;
 				continue;
 			}
-			const known = QUADRANT_HEADINGS.get(label);
-			currentQuadrant = currentDay ? (known?.id ?? mappingFallback(label)) : null;
+			// The cell a heading belongs to is the layout's answer, not this
+			// module's: the wording may be one the user typed, one the plugin
+			// derives, one it stopped using, or one that names a cell that has
+			// since been removed — and the last of those resolves to whatever took
+			// it over. The layout answers every case the same way, which is what
+			// keeps a week written before a cell was removed readable. Resolution
+			// is asked for even outside a day, because the wording still says
+			// which language the file is written in.
+			const known = DEFAULT_SLOT_LAYOUT.heading(label);
+			currentQuadrant = currentDay ? known?.id ?? null : null;
 			currentSection = null;
 			currentTask = null;
 			fileLocale ??= known?.locale ?? null;
@@ -362,44 +323,6 @@ export function parseSchedule(
 }
 
 /**
- * Handles generic word-order combinations such as "紧急 · 重要" or "urgent but
- * unimportant", which a hand-edited file may use instead of the exact wording.
- */
-function mappingFallback(label: string): QuadrantId | null {
-	if (label.includes('重要') || label.includes('紧急')) {
-		// `不重要` contains `重要`, and `不紧急` contains `紧急`, so the negated
-		// forms are tested first.
-		return fromFlags({
-			important: label.includes('重要') && !label.includes('不重要'),
-			unimportant: label.includes('不重要'),
-			urgent: label.includes('紧急') && !label.includes('不紧急'),
-			notUrgent: label.includes('不紧急'),
-		});
-	}
-
-	const unimportant = label.includes('not important') || label.includes('unimportant');
-	return fromFlags({
-		important: !unimportant && label.includes('important'),
-		unimportant,
-		urgent: !label.includes('not urgent') && label.includes('urgent'),
-		notUrgent: label.includes('not urgent'),
-	});
-}
-
-function fromFlags(flags: {
-	important: boolean;
-	unimportant: boolean;
-	urgent: boolean;
-	notUrgent: boolean;
-}): QuadrantId | null {
-	if (flags.important && flags.urgent) return 'q1';
-	if (flags.unimportant && flags.urgent) return 'q2';
-	if (flags.important && flags.notUrgent) return 'q3';
-	if (flags.unimportant && flags.notUrgent) return 'q4';
-	return null;
-}
-
-/**
  * Writes a board file, with the headings in the language the schedule was loaded
  * with, so saving an edit never translates a file the user already had.
  *
@@ -424,7 +347,7 @@ export function serializeSchedule(schedule: WeekSchedule): string {
 
 		lines.push('', `## ${dayLabel(day.id, schedule.locale)}`);
 		for (const quadrant of populated) {
-			lines.push('', `### ${quadrantHeading(quadrant.id, schedule.locale)}`);
+			lines.push('', `### ${slotHeading(DEFAULT_SLOT_LAYOUT, quadrant.id, schedule.locale)}`);
 			for (const task of quadrant.tasks) {
 				if (!hasTaskText(task)) {
 					continue;
