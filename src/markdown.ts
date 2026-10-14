@@ -13,6 +13,7 @@ import {
 	reviewTitle,
 } from './i18n';
 import { DEFAULT_SLOT_LAYOUT, normalizeHeading, slotHeading } from './slots';
+import type { SlotHeadingMatch, SlotLayout } from './slots';
 import { createTaskId } from './utils/helpers';
 import type { Locale } from './i18n';
 import type {
@@ -82,7 +83,8 @@ for (const locale of SUPPORTED_LOCALES) {
  * `### Check` under a day closing the cell rather than opening a section.
  */
 const REVIEW_TITLES = new Map<string, Locale>();
-const REVIEW_HEADINGS = new Map<string, HeadingMatch<ReviewSectionId>>();
+/** A section's heading is always the wording of some language, unlike a day's. */
+const REVIEW_HEADINGS = new Map<string, { id: ReviewSectionId; locale: Locale }>();
 
 for (const locale of SUPPORTED_LOCALES) {
 	REVIEW_TITLES.set(normalizeHeading(reviewTitle(locale)), locale);
@@ -153,6 +155,81 @@ export function hasReviewText(review: WeekReview): boolean {
 }
 
 /**
+ * What one line of a file is, as far as the headings go — or `null` when the
+ * line is not a heading at all and means whatever the lines around it say.
+ *
+ * `null` answers are not failures. A heading this plugin does not recognize
+ * closes whatever was open rather than guessing, and every `##` that is not a
+ * day is one of those, so the answer has to be able to say "a heading, but not
+ * one of mine" — which is why a day carries either its id or nothing.
+ */
+export type HeadingKind =
+	/** `## Review` — everything below is the week's own notes rather than work. */
+	| { kind: 'reviewTitle'; locale: Locale }
+	/** `## 周一` / `## Monday`, or a `##` naming nothing this plugin knows. */
+	| { kind: 'day'; day: DayId | null; locale: Locale | null }
+	/** `### 计划` under the review, where a section name means a section. */
+	| { kind: 'reviewSection'; section: ReviewSectionId; locale: Locale }
+	/** `### 重要 · 紧急`, or a `###` naming no cell. */
+	| { kind: 'slot'; match: SlotHeadingMatch | null };
+
+/**
+ * Works out what a line is, and which cell or section it opens.
+ *
+ * One function rather than a branch inside the reader, because two callers have
+ * to agree on it exactly: reading a week, and rewriting the headings of every
+ * week in the vault when the layout changed. The second one must change the
+ * lines the first would have read and leave every other line alone, so a second
+ * opinion about what a heading is would be a way for a week to be rewritten
+ * into something the reader no longer recognizes.
+ *
+ * `inReview` is what makes `### 计划` a section there and nothing anywhere else,
+ * so it is an argument rather than something worked out here: only the caller
+ * knows where the line sits.
+ */
+export function classifyHeading(
+	line: string,
+	layout: SlotLayout,
+	inReview: boolean,
+): HeadingKind | null {
+	const dayMatch = DAY_HEADING.exec(line);
+	if (dayMatch) {
+		const label = normalizeHeading(dayMatch[1] ?? '');
+		// The review's heading is a top-level one exactly like a day's, so the two
+		// are told apart here, before the day headings are looked up. A review
+		// opens no day: everything under it is items rather than work.
+		const titleLocale = REVIEW_TITLES.get(label);
+		if (titleLocale !== undefined) {
+			return { kind: 'reviewTitle', locale: titleLocale };
+		}
+		// A bare id (`## mon`) names no language, so it leaves the file locale alone.
+		const match = DAY_HEADINGS.get(label) ?? (isDayId(label) ? { id: label, locale: null } : null);
+		return { kind: 'day', day: match?.id ?? null, locale: match?.locale ?? null };
+	}
+
+	const quadrantMatch = QUADRANT_HEADING.exec(line);
+	if (quadrantMatch) {
+		const label = normalizeHeading(quadrantMatch[1] ?? '');
+		// Only a line inside the review can name one of its sections. The same
+		// word under a day names nothing, so it closes the cell like any heading
+		// the board does not recognize.
+		const section = inReview ? REVIEW_HEADINGS.get(label) : undefined;
+		if (section) {
+			return { kind: 'reviewSection', section: section.id, locale: section.locale };
+		}
+		// The cell a heading belongs to is the layout's answer, not this module's:
+		// the wording may be one the user typed, one the plugin derives, one it
+		// stopped using, or one that names a cell that has since been removed — and
+		// the last of those answers with whatever took it over. Asked here rather
+		// than by the caller because the wording says which language the file is
+		// written in even when no day is open to put a cell in.
+		return { kind: 'slot', match: layout.heading(label) };
+	}
+
+	return null;
+}
+
+/**
  * Parses a board file. Anything that is not a recognized day/quadrant heading,
  * a review heading, or a checkbox line (frontmatter, comments, prose) is
  * ignored, and an unrecognized `###` heading closes the current quadrant instead
@@ -198,60 +275,40 @@ export function parseSchedule(
 	let fileLocale: Locale | null = null;
 
 	for (const rawLine of content.split(/\r?\n/)) {
-		const dayMatch = DAY_HEADING.exec(rawLine);
-		if (dayMatch) {
-			const label = normalizeHeading(dayMatch[1] ?? '');
-			// The review's heading is a top-level one exactly like a day's, so the two
-			// are told apart here, before the day headings are looked up. A review
-			// opens no day: everything under it is items rather than work.
-			const titleLocale = REVIEW_TITLES.get(label);
-			if (titleLocale !== undefined) {
-				inReview = true;
-				currentDay = null;
-				currentQuadrant = null;
-				currentSection = null;
-				currentTask = null;
-				fileLocale ??= titleLocale;
-				continue;
+		const heading = classifyHeading(rawLine, DEFAULT_SLOT_LAYOUT, inReview);
+		if (heading !== null) {
+			switch (heading.kind) {
+				case 'reviewTitle':
+					inReview = true;
+					currentDay = null;
+					currentQuadrant = null;
+					currentSection = null;
+					currentTask = null;
+					fileLocale ??= heading.locale;
+					continue;
+				case 'day':
+					inReview = false;
+					currentDay = heading.day === null ? null : byId.get(heading.day) ?? null;
+					currentQuadrant = null;
+					currentSection = null;
+					currentTask = null;
+					fileLocale ??= heading.locale;
+					continue;
+				case 'reviewSection':
+					currentSection = heading.section;
+					currentQuadrant = null;
+					currentTask = null;
+					fileLocale ??= heading.locale;
+					continue;
+				case 'slot':
+					currentQuadrant = currentDay ? heading.match?.id ?? null : null;
+					currentSection = null;
+					currentTask = null;
+					fileLocale ??= heading.match?.locale ?? null;
+					continue;
 			}
-			// A bare id (`## mon`) names no language, so it leaves the file locale alone.
-			const match = DAY_HEADINGS.get(label) ?? (isDayId(label) ? { id: label, locale: null } : null);
-			inReview = false;
-			currentDay = match ? (byId.get(match.id) ?? null) : null;
-			currentQuadrant = null;
-			currentSection = null;
-			currentTask = null;
-			fileLocale ??= match?.locale ?? null;
-			continue;
-		}
-
-		const quadrantMatch = QUADRANT_HEADING.exec(rawLine);
-		if (quadrantMatch) {
-			const label = normalizeHeading(quadrantMatch[1] ?? '');
-			// Only a line inside the review can name one of its sections. The same
-			// word under a day names nothing, so it closes the cell like any heading
-			// the board does not recognize.
-			const section = inReview ? REVIEW_HEADINGS.get(label) : undefined;
-			if (section) {
-				currentSection = section.id;
-				currentQuadrant = null;
-				currentTask = null;
-				fileLocale ??= section.locale;
-				continue;
-			}
-			// The cell a heading belongs to is the layout's answer, not this
-			// module's: the wording may be one the user typed, one the plugin
-			// derives, one it stopped using, or one that names a cell that has
-			// since been removed — and the last of those resolves to whatever took
-			// it over. The layout answers every case the same way, which is what
-			// keeps a week written before a cell was removed readable. Resolution
-			// is asked for even outside a day, because the wording still says
-			// which language the file is written in.
-			const known = DEFAULT_SLOT_LAYOUT.heading(label);
-			currentQuadrant = currentDay ? known?.id ?? null : null;
-			currentSection = null;
-			currentTask = null;
-			fileLocale ??= known?.locale ?? null;
+			// A heading of a kind this switch does not handle must not fall through
+			// to the rules below: they would read the lines under it as tasks.
 			continue;
 		}
 
