@@ -284,7 +284,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			this.renderCell(containerEl, slot, index, slots.length);
 		}
 
-		new Setting(containerEl).setClass('weekly-schedule-slot-add').addButton((button) =>
+		new Setting(containerEl).addButton((button) =>
 			button
 				.setButtonText(t('settings.slots.add'))
 				.setDisabled(slots.length >= SLOT_LIMITS.max)
