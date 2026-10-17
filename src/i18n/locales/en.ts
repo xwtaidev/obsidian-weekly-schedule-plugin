@@ -145,6 +145,8 @@ export const en = {
 		'A cell is the heading above a group of tasks in the week file. Name them, reorder them, add or remove them — a day holds between one and eight.',
 	'settings.slots.newName': 'Cell {count}',
 	'settings.slots.usingDefault': 'Called {name} until you name it yourself',
+	'settings.slots.field': 'The name of cell {index}',
+	'settings.slots.count': '{count} of the {max} cells a day can hold',
 	'settings.slots.add': 'Add a cell',
 	// One wording per code `validateSlots` can answer with, so a code that is
 	// added without a sentence for it fails to compile rather than showing

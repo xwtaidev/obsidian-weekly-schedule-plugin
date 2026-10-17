@@ -11,10 +11,11 @@ leaves over — nine members, a full 3x3.
 */
 
 /*
-The palette is declared on the two scopes that draw a cell in colour: the board,
-and the carry-over dialog whose tag names the cell a task will land in. It is
-deliberately not on `:root` — another plugin's `--ws-*` would collide with it —
-so a new surface that colours a cell has to be added here.
+The palette is declared on the three scopes that draw a cell in colour: the
+board, the carry-over dialog whose tag names the cell a task will land in, and
+the list of cells on the settings tab. It is deliberately not on `:root` —
+another plugin's `--ws-*` would collide with it — so a new surface that colours
+a cell has to be added here.
 
 Eight tones, because that is how many cells a layout may hold. The first four
 are the four quadrants the plugin shipped with, unchanged to the byte: a vault
@@ -29,7 +30,8 @@ white on a dark one. The light values were solved against #ffffff and the dark
 against #1e1e1e, where Obsidian's own `--background-primary` sits in each.
 */
 .weekly-schedule-container,
-.weekly-schedule-carry-modal {
+.weekly-schedule-carry-modal,
+.weekly-schedule-slot-list {
 	--ws-tone-0-rail: #b6575f;
 	--ws-tone-1-rail: #8a6dbb;
 	--ws-tone-2-rail: #4f81b8;
@@ -68,7 +70,8 @@ against #1e1e1e, where Obsidian's own `--background-primary` sits in each.
    puts `.theme-dark` on the body, which still matches this descendant. The
    rails are the hues themselves, as they are in light theme. */
 .theme-dark .weekly-schedule-container,
-.theme-dark .weekly-schedule-carry-modal {
+.theme-dark .weekly-schedule-carry-modal,
+.theme-dark .weekly-schedule-slot-list {
 	--ws-tone-0-label: #c06e75;
 	--ws-tone-1-label: #9378c0;
 	--ws-tone-2-label: #5a89bc;
@@ -340,56 +343,66 @@ button.weekly-schedule-day-carry:focus-visible {
 
 /* The one place a tone is mapped to its colours. A cell wears it, and so does
    the tag that names a cell in the carry-over dialog — the dialog draws the
-   same words as a cell heading, so it reads them in the same colour.
+   same words as a cell heading, so it reads them in the same colour — and so
+   does the cell's line on the settings tab, which shows the colour rather than
+   the wording a week happened to use.
 
    By number rather than by cell id, and that is the point: an id is the user's,
    and a stylesheet cannot be written for a word it has never seen. A cell's
    tone is its position in the palette, which is the four built-ins' order for
    the four built-ins — so the board's colours do not move. */
 .weekly-schedule-cell-tone-0,
-.weekly-schedule-carry-tag-tone-0 {
+.weekly-schedule-carry-tag-tone-0,
+.weekly-schedule-slot-tone-0 {
 	--ws-accent: var(--ws-tone-0-rail);
 	--ws-accent-label: var(--ws-tone-0-label);
 }
 
 .weekly-schedule-cell-tone-1,
-.weekly-schedule-carry-tag-tone-1 {
+.weekly-schedule-carry-tag-tone-1,
+.weekly-schedule-slot-tone-1 {
 	--ws-accent: var(--ws-tone-1-rail);
 	--ws-accent-label: var(--ws-tone-1-label);
 }
 
 .weekly-schedule-cell-tone-2,
-.weekly-schedule-carry-tag-tone-2 {
+.weekly-schedule-carry-tag-tone-2,
+.weekly-schedule-slot-tone-2 {
 	--ws-accent: var(--ws-tone-2-rail);
 	--ws-accent-label: var(--ws-tone-2-label);
 }
 
 .weekly-schedule-cell-tone-3,
-.weekly-schedule-carry-tag-tone-3 {
+.weekly-schedule-carry-tag-tone-3,
+.weekly-schedule-slot-tone-3 {
 	--ws-accent: var(--ws-tone-3-rail);
 	--ws-accent-label: var(--ws-tone-3-label);
 }
 
 .weekly-schedule-cell-tone-4,
-.weekly-schedule-carry-tag-tone-4 {
+.weekly-schedule-carry-tag-tone-4,
+.weekly-schedule-slot-tone-4 {
 	--ws-accent: var(--ws-tone-4-rail);
 	--ws-accent-label: var(--ws-tone-4-label);
 }
 
 .weekly-schedule-cell-tone-5,
-.weekly-schedule-carry-tag-tone-5 {
+.weekly-schedule-carry-tag-tone-5,
+.weekly-schedule-slot-tone-5 {
 	--ws-accent: var(--ws-tone-5-rail);
 	--ws-accent-label: var(--ws-tone-5-label);
 }
 
 .weekly-schedule-cell-tone-6,
-.weekly-schedule-carry-tag-tone-6 {
+.weekly-schedule-carry-tag-tone-6,
+.weekly-schedule-slot-tone-6 {
 	--ws-accent: var(--ws-tone-6-rail);
 	--ws-accent-label: var(--ws-tone-6-label);
 }
 
 .weekly-schedule-cell-tone-7,
-.weekly-schedule-carry-tag-tone-7 {
+.weekly-schedule-carry-tag-tone-7,
+.weekly-schedule-slot-tone-7 {
 	--ws-accent: var(--ws-tone-7-rail);
 	--ws-accent-label: var(--ws-tone-7-label);
 }
@@ -1277,11 +1290,233 @@ button.weekly-schedule-review-header:focus-visible {
 
 /* ---------- Settings: the cells a day has ---------- */
 
-/* Two rules, and neither of them reaches for the cell palette: the settings tab
-   is not the board, and which colour a cell is drawn in is the board's business.
-   What a row is, is a name field and three buttons. */
-.weekly-schedule-slot-row input[type='text'] {
-	width: 16em;
+/* Two sections, not a run of settings rows: what a day holds from now on, and
+   whether the weeks already written should be made to say the same. Each is a
+   title, one sentence, and then the thing itself — the list of cells, or the
+   one button that touches the files.
+
+   The list is built by the tab rather than out of `Setting` rows, so its shape
+   is entirely this file's: one line per cell, the name on the left where it can
+   be read, the colour the board draws it in, and its three buttons at the end.
+   A `Setting` is a card holding one option — as a row it left its left half
+   empty, pushed the name field to the far right edge and padded the whole card
+   for a description it did not have, so four cells took 368px and read as four
+   unrelated options. */
+
+/* A section is a group, so it keeps its distance from the settings rows above
+   and below it — the rows themselves are only 8px apart, and a title that close
+   to a card reads as part of it. */
+.weekly-schedule-section {
+	margin: var(--size-4-6, 24px) 0;
+}
+
+.weekly-schedule-section + .weekly-schedule-section {
+	margin-top: var(--size-4-8, 32px);
+}
+
+.weekly-schedule-section-head {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2, 8px);
+}
+
+.weekly-schedule-section-title {
+	color: var(--text-normal);
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold, 600);
+	line-height: var(--line-height-tight, 1.3);
+}
+
+.weekly-schedule-section-desc {
+	max-width: 46em;
+	margin: var(--size-2-2, 4px) 0 var(--size-4-3, 12px);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-normal, 1.5);
+}
+
+/* How much of the limit is in use. At the far end of the title's line, which is
+   the one place there is room for it: a count, not a sentence. */
+.weekly-schedule-slot-count {
+	margin-inline-start: auto;
+	padding: 1px var(--size-4-2, 8px);
+	border-radius: var(--radius-l);
+	background-color: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* The list wears the same card as the settings rows above and below it:
+   `--setting-items-*` is the app's own vocabulary for that, with the values it
+   used before those variables existed as the fallback. */
+.weekly-schedule-slot-list {
+	background-color: var(--setting-items-background, var(--background-primary-alt));
+	border-radius: var(--setting-items-radius, var(--radius-l));
+	overflow: hidden;
+}
+
+.weekly-schedule-slot-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2, 8px);
+	min-height: 38px;
+	padding: var(--size-2-2, 4px) var(--size-2-3, 6px) var(--size-2-2, 4px) var(--size-4-3, 12px);
+}
+
+.weekly-schedule-slot-row + .weekly-schedule-slot-row {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* The order the cells are drawn in, so that "move up" has something to count
+   from. Faint: it is a position, not a name. */
+.weekly-schedule-slot-index {
+	flex: 0 0 auto;
+	min-width: 1.2em;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+	user-select: none;
+}
+
+/* The colour the cell is drawn in on the board. Small on purpose: it is an
+   identifier, and eight of them should not read as eight alarms. */
+.weekly-schedule-slot-dot {
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--ws-accent, var(--text-faint));
+}
+
+/* A name, not a form field: no box until it is pointed at, no box at all while
+   it is not being edited — the row is the line, so the field has to disappear
+   into it.
+
+   `text-align` is not a detail: a settings control inherits `text-align: end`
+   from Obsidian's row, which is what held these names against the right edge. */
+.weekly-schedule-slot-list .weekly-schedule-slot-name {
+	flex: 1 1 auto;
+	width: auto;
+	min-width: 0;
+	height: var(--input-height, 30px);
+	padding: 0 var(--size-4-2, 8px);
+	background-color: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	text-align: start;
+	text-overflow: ellipsis;
+}
+
+.weekly-schedule-slot-row:hover .weekly-schedule-slot-name {
+	border-color: var(--background-modifier-border);
+}
+
+.weekly-schedule-slot-list .weekly-schedule-slot-name:focus {
+	background-color: var(--background-primary);
+	border-color: var(--background-modifier-border-focus, var(--interactive-accent));
+	box-shadow: none;
+}
+
+.weekly-schedule-slot-name::placeholder {
+	color: var(--text-faint);
+}
+
+/* The three buttons. Faint until the row is under the pointer, so that a list
+   of eight names does not read as a list of twenty-four buttons. */
+.weekly-schedule-slot-row .clickable-icon {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+}
+
+/* A shade smaller than the app's icon buttons: three of them end a row that is
+   mostly text, and at 18px they were the loudest thing on it. */
+.weekly-schedule-slot-row .clickable-icon .svg-icon {
+	--icon-size: var(--icon-s, 16px);
+}
+
+.weekly-schedule-slot-row:hover .clickable-icon {
+	color: var(--text-muted);
+}
+
+.weekly-schedule-slot-row .clickable-icon:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+/* A little apart from the two that move it: the one button on the row that
+   cannot be taken back should not be a slip of the pointer away. */
+.weekly-schedule-slot-row .weekly-schedule-slot-remove {
+	margin-inline-start: var(--size-2-1, 2px);
+}
+
+.weekly-schedule-slot-row .weekly-schedule-slot-remove:hover {
+	color: var(--text-error);
+}
+
+.weekly-schedule-slot-row .clickable-icon:disabled,
+.weekly-schedule-slot-row:hover .clickable-icon:disabled {
+	color: var(--text-faint);
+	background-color: transparent;
+	opacity: 0.3;
+	cursor: default;
+}
+
+/* The last line of the list: adding one. A row like the others rather than a
+   button beside them, because it is the same kind of thing. */
+.weekly-schedule-slot-list .weekly-schedule-slot-add {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2, 8px);
+	width: 100%;
+	height: auto;
+	min-height: 38px;
+	margin: 0;
+	padding: 0 var(--size-4-3, 12px);
+	background-color: transparent;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: start;
+	cursor: pointer;
+}
+
+/* No `:active` transform here, and none on the row: a full-width button that
+   shifts as it is pressed takes its own mouseup out from under the pointer. */
+.weekly-schedule-slot-list .weekly-schedule-slot-add:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.weekly-schedule-slot-list .weekly-schedule-slot-add:disabled,
+.weekly-schedule-slot-list .weekly-schedule-slot-add:disabled:hover {
+	background-color: transparent;
+	color: var(--text-faint);
+	cursor: default;
+	opacity: 0.55;
+}
+
+.weekly-schedule-slot-add-icon {
+	display: flex;
+	align-items: center;
+	color: inherit;
+}
+
+.weekly-schedule-slot-add-icon .svg-icon {
+	--icon-size: var(--icon-xs, 14px);
+}
+
+.weekly-schedule-section-actions {
+	display: flex;
+	gap: var(--size-4-2, 8px);
 }
 
 /* The one line that says what is wrong with the cells. It is drawn even when
@@ -1289,8 +1524,10 @@ button.weekly-schedule-review-header:focus-visible {
    answered without rebuilding the fields above it — and takes no room then,
    rather than leaving a gap no one can account for. */
 .weekly-schedule-slot-error {
-	margin: -0.4em 0 1em;
+	margin: var(--size-2-2, 4px) 0 0;
+	padding-inline-start: var(--size-4-3, 12px);
 	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
 }
 
 .weekly-schedule-slot-error:empty {

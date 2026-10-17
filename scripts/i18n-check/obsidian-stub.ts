@@ -45,6 +45,18 @@ export class Modal {
 	}
 }
 
+/**
+ * Draws a Lucide icon into an element.
+ *
+ * The settings tab draws its own buttons and so reaches for this; the tab is
+ * never built here, but the module that holds the settings model imports it,
+ * so it has to exist. Throwing keeps the stub honest: an icon that appeared out
+ * of nowhere would mean a pane had been built outside the app after all.
+ */
+export function setIcon(_el: unknown, _icon: string): void {
+	throw new Error('obsidian stub: icons cannot be drawn outside the app');
+}
+
 type StartUnit = 'day' | 'year' | 'isoWeek';
 
 class StubMoment {

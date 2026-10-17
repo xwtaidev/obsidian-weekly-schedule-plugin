@@ -97,6 +97,8 @@ export const zh: Translations = {
 		'一个格子就是周文件里一组任务上方的那行标题。可以给它起名、换顺序、增删——一天 1 到 8 个。',
 	'settings.slots.newName': '格子 {count}',
 	'settings.slots.usingDefault': '在你命名之前，它叫「{name}」',
+	'settings.slots.field': '第 {index} 个格子的名字',
+	'settings.slots.count': '一天最多 {max} 个格子，现在有 {count} 个',
 	'settings.slots.add': '添加一个格子',
 	'settings.slots.error.limitMin': '一天至少得留一个格子。',
 	'settings.slots.error.limitMax': '一天最多 {max} 个格子。',

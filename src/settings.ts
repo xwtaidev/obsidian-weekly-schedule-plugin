@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting } from 'obsidian';
+import { PluginSettingTab, Setting, setIcon } from 'obsidian';
 import { DEFAULT_FOLDER, DEFAULT_SLOTS, SLOT_LIMITS, WEEK_START_OPTIONS } from './constants';
 import { dayLabel, getLocale, t } from './i18n';
 import { nextSlot, normalizeSlotConfig, retireSlot, slotHeading, validateSlots } from './slots';
@@ -275,40 +275,51 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	private renderCells(containerEl: HTMLElement): void {
 		const { slots, retiredSlots } = this.plugin.settings;
 
-		new Setting(containerEl)
-			.setName(t('settings.slots.name'))
-			.setDesc(t('settings.slots.desc'))
-			.setHeading();
-
-		for (const [index, slot] of slots.entries()) {
-			this.renderCell(containerEl, slot, index, slots.length);
-		}
-
-		new Setting(containerEl).addButton((button) =>
-			button
-				.setButtonText(t('settings.slots.add'))
-				.setDisabled(slots.length >= SLOT_LIMITS.max)
-				.onClick(() => void this.addCell()),
+		const cells = containerEl.createDiv({ cls: 'weekly-schedule-section' });
+		const head = this.sectionHead(cells, t('settings.slots.name'), t('settings.slots.desc'));
+		const countEl = head.createDiv({ cls: 'weekly-schedule-slot-count' });
+		countEl.setText(`${slots.length} / ${SLOT_LIMITS.max}`);
+		countEl.setAttribute(
+			'aria-label',
+			t('settings.slots.count', { count: slots.length, max: SLOT_LIMITS.max }),
 		);
+
+		const list = cells.createDiv({ cls: 'weekly-schedule-slot-list' });
+		for (const [index, slot] of slots.entries()) {
+			this.renderCell(list, slot, index, slots.length);
+		}
+		this.renderAddCell(list, slots.length);
 
 		// The line is drawn empty and filled in later, so that a refused edit has
 		// somewhere to be said without redrawing the fields above it.
-		this.slotErrorEl = containerEl.createDiv({ cls: 'weekly-schedule-slot-error' });
+		this.slotErrorEl = cells.createDiv({ cls: 'weekly-schedule-slot-error' });
 		this.showSlotError(validateSlots(slots, retiredSlots)[0] ?? null);
 
-		new Setting(containerEl)
-			.setName(t('settings.slots.align.name'))
-			.setDesc(t('settings.slots.align.desc'))
-			.setHeading();
-
-		new Setting(containerEl).addButton((button) =>
-			button
-				.setButtonText(t('settings.slots.align.button'))
-				.onClick(() => void this.plugin.alignSlotsAcrossWeeks()),
-		);
+		const align = containerEl.createDiv({ cls: 'weekly-schedule-section' });
+		this.sectionHead(align, t('settings.slots.align.name'), t('settings.slots.align.desc'));
+		const actions = align.createDiv({ cls: 'weekly-schedule-section-actions' });
+		const alignButton = actions.createEl('button', { text: t('settings.slots.align.button') });
+		alignButton.addEventListener('click', () => void this.plugin.alignSlotsAcrossWeeks());
 	}
 
-	/** One cell: its name, and the three things that can be done to it. */
+	/** A section's title and the sentence under it; the title's line comes back. */
+	private sectionHead(parent: HTMLElement, title: string, desc: string): HTMLElement {
+		const head = parent.createDiv({ cls: 'weekly-schedule-section-head' });
+		head.createDiv({ cls: 'weekly-schedule-section-title', text: title });
+		parent.createDiv({ cls: 'weekly-schedule-section-desc', text: desc });
+		return head;
+	}
+
+	/**
+	 * One cell: its name, and the three things that can be done to it.
+	 *
+	 * Built by hand rather than as a `Setting`, because a `Setting` is a card of
+	 * its own — one option, its explanation and a control on the far side — and
+	 * a cell is one line in a list of peers. As a `Setting` a row comes out
+	 * empty on the left, its name field pushed to the right edge and the whole
+	 * card padded for a description that is not there: four cells took 368px of
+	 * the pane and read as four unrelated options.
+	 */
 	private renderCell(
 		containerEl: HTMLElement,
 		slot: Slot,
@@ -316,57 +327,96 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		count: number,
 	): void {
 		const layout = this.plugin.slotLayout();
-		const row = new Setting(containerEl).setClass('weekly-schedule-slot-row');
-
-		row.addText((text) => {
-			text.inputEl.addClass('weekly-schedule-slot-name');
-			text.inputEl.dataset.slotId = slot.id;
-			text.setValue(slot.name ?? '');
-			if (slot.name === null) {
-				// What the cell is called until it is called something: the wording
-				// the board prints for it, which follows the interface language,
-				// because a cell nobody named has no wording of its own.
-				const name = slotHeading(layout, slot.id, getLocale());
-				text.setPlaceholder(name);
-				text.inputEl.setAttribute('aria-label', t('settings.slots.usingDefault', { name }));
-			}
-			// Committed on leaving the field or on Enter, not on every keystroke:
-			// the cells decide what every week's file looks like, and a layout that
-			// followed each letter typed would rewrite weeks for a half-typed name.
-			text.inputEl.addEventListener('blur', () => {
-				void this.commitCellName(index, text.inputEl.value);
-			});
-			text.inputEl.addEventListener('keydown', (event) => {
-				if (event.key === 'Enter') {
-					event.preventDefault();
-					text.inputEl.blur();
-				}
-			});
+		const row = containerEl.createDiv({
+			cls: `weekly-schedule-slot-row weekly-schedule-slot-tone-${slot.tone}`,
 		});
 
-		row.addExtraButton((button) =>
-			button
-				.setIcon('arrow-up')
-				.setTooltip(t('board.moveUp'))
-				.setDisabled(index === 0)
-				.onClick(() => void this.moveCell(index, index - 1)),
+		row.createDiv({ cls: 'weekly-schedule-slot-index', text: String(index + 1) });
+		// The cell's colour on the board, so the list and the board name the same
+		// thing twice rather than looking like two different lists.
+		const dot = row.createDiv({ cls: 'weekly-schedule-slot-dot' });
+		dot.setAttribute('aria-hidden', 'true');
+
+		const input = row.createEl('input', { type: 'text', cls: 'weekly-schedule-slot-name' });
+		input.dataset.slotId = slot.id;
+		input.value = slot.name ?? '';
+		input.spellcheck = false;
+		// What the cell is called until it is called something: the wording the
+		// board prints for it, which follows the interface language, because a
+		// cell nobody named has no wording of its own. It stays as the
+		// placeholder once the field is emptied, which is what emptying it means.
+		const derived = slotHeading(layout, slot.id, getLocale());
+		input.placeholder = derived;
+		input.setAttribute(
+			'aria-label',
+			slot.name === null
+				? t('settings.slots.usingDefault', { name: derived })
+				: t('settings.slots.field', { index: index + 1 }),
 		);
-		row.addExtraButton((button) =>
-			button
-				.setIcon('arrow-down')
-				.setTooltip(t('board.moveDown'))
-				.setDisabled(index === count - 1)
-				.onClick(() => void this.moveCell(index, index + 1)),
+		// Committed on leaving the field or on Enter, not on every keystroke:
+		// the cells decide what every week's file looks like, and a layout that
+		// followed each letter typed would rewrite weeks for a half-typed name.
+		input.addEventListener('blur', () => {
+			void this.commitCellName(index, input.value);
+		});
+		input.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				input.blur();
+			}
+		});
+
+		this.actionButton(row, 'arrow-up', t('board.moveUp'), index === 0, () =>
+			void this.moveCell(index, index - 1),
 		);
-		row.addExtraButton((button) =>
-			button
-				.setIcon('x')
-				.setTooltip(t('board.delete'))
-				// A day with no cells is a week no file can describe, so the last
-				// one has no remove button to press.
-				.setDisabled(count <= SLOT_LIMITS.min)
-				.onClick(() => this.confirmRemoveCell(slot.id)),
+		this.actionButton(row, 'arrow-down', t('board.moveDown'), index === count - 1, () =>
+			void this.moveCell(index, index + 1),
 		);
+		this.actionButton(
+			row,
+			'x',
+			t('board.delete'),
+			// A day with no cells is a week no file can describe, so the last
+			// one has no remove button to press.
+			count <= SLOT_LIMITS.min,
+			() => this.confirmRemoveCell(slot.id),
+			'weekly-schedule-slot-remove',
+		);
+	}
+
+	/**
+	 * One of the small buttons at the end of a cell's row.
+	 *
+	 * Plain buttons rather than `Setting.addExtraButton`, for the reason the row
+	 * itself is not a `Setting` — but they keep Obsidian's own `clickable-icon`
+	 * class, so the hover square, the focus ring and the tooltip that every
+	 * `aria-label` gets are the app's rather than this plugin's.
+	 */
+	private actionButton(
+		row: HTMLElement,
+		icon: string,
+		label: string,
+		disabled: boolean,
+		onClick: () => void,
+		extraClass?: string,
+	): void {
+		const button = row.createEl('button', {
+			cls: extraClass === undefined ? 'clickable-icon' : `clickable-icon ${extraClass}`,
+		});
+		setIcon(button, icon);
+		button.setAttribute('aria-label', label);
+		button.disabled = disabled;
+		button.addEventListener('click', onClick);
+	}
+
+	/** The line under the cells that adds one, and is spent at the limit. */
+	private renderAddCell(list: HTMLElement, count: number): void {
+		const button = list.createEl('button', { cls: 'weekly-schedule-slot-add' });
+		const icon = button.createSpan({ cls: 'weekly-schedule-slot-add-icon' });
+		setIcon(icon, 'plus');
+		button.createSpan({ text: t('settings.slots.add') });
+		button.disabled = count >= SLOT_LIMITS.max;
+		button.addEventListener('click', () => void this.addCell());
 	}
 
 	/**
