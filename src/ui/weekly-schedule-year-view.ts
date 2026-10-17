@@ -182,7 +182,11 @@ export class WeeklyScheduleYearView extends ItemView {
 	async handleFileChange(path: string): Promise<void> {
 		const index = this.cells.findIndex((cell) => cell.path === path);
 		if (index === -1) {
-			this.plugin.store.forget(path);
+			// A week this overview is not showing. There is nothing here to
+			// update, and the week is not this view's to drop: another pane may
+			// have it open with edits of its own, and forgetting it used to leave
+			// that board writing to a week the store no longer held — silently,
+			// and only from the second edit on.
 			return;
 		}
 

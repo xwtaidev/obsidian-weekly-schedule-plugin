@@ -586,8 +586,15 @@ export default class WeeklySchedulePlugin extends Plugin {
 		// What the board holds is committed, and the weeks it has pending are
 		// written, before any of them is read: a week written after this pass
 		// would put the headings it was read with back on disk.
+		//
+		// Flushed, not emptied. Emptying used to be here, and it left the board
+		// holding a week this store no longer had: nothing to align is the usual
+		// answer, so the method returned there, and every keystroke after it was
+		// a write to a week that was not in the store — which is to say no write
+		// at all. Clearing the store belongs after the files have been rewritten
+		// (`alignWeeks`), where the board is reloaded with it.
 		await this.viewOf()?.commitPendingEdits();
-		await this.store.invalidate();
+		await this.store.flushAll();
 
 		const layout = this.slotLayout();
 		const plan = await planSlotAlignment(this.app.vault, this.settings.folder, layout);

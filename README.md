@@ -261,6 +261,7 @@ npm run lint       # ESLint with Obsidian-specific rules
 npm run check:i18n # verify the localization and file-heading rules
 npm run check:carry # verify the rules for carrying last week's work over
 npm run check:slots # verify the rules for the cells a day has
+npm run check:store # verify that an edit reaches its file
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
@@ -301,6 +302,17 @@ answering to one name, a name that would break the heading line, a removal point
 at nothing or looping are each refused with one code, and the whole-vault alignment
 rewrites cell headings and not one line besides.
 
+`npm run check:store` is about the one failure a week cannot come back from: an
+edit that is on the board and never reaches its file. A week lives in memory
+between the keystroke and the timer that writes it, and a write with nothing to
+write returns as if it were done, so the failures are silent. The checks drive a
+real store against a vault held in a `Map` and ask what is on disk: work typed
+into a cell added while the board was open is in the file, and is still there
+when that cell is removed into another one; an edit reaches the file even when
+the store no longer holds the week; a week a caller asked to forget is not
+written from the copy it forgot; and a week with no file yet is made, folder
+first.
+
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
 
@@ -339,6 +351,7 @@ scripts/
   i18n-check/                    # The npm run check:i18n helper
   carry-check/                   # The npm run check:carry helper
   slot-check/                    # The npm run check:slots helper
+  store-check/                   # The npm run check:store helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 

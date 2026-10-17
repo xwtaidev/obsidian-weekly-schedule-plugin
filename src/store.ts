@@ -84,6 +84,18 @@ export function countTasks(schedule: WeekSchedule): WeekStats {
  */
 export class ScheduleStore {
 	private readonly cache = new Map<string, CacheEntry>();
+	/**
+	 * Boards holding an edit that has not been written yet.
+	 *
+	 * Kept apart from the cache because the two answer different questions: the
+	 * cache is what this store has read, and this is what a board is showing.
+	 * They fall out of step whenever the store is emptied while a pane is open —
+	 * a change of cells empties it by design, and a vault event for the week can
+	 * drop it as well — and a write that read only the cache would then find
+	 * nothing to write and say it was done. The board would go on showing work
+	 * no file holds, which is the one failure a week cannot recover from.
+	 */
+	private readonly pendingSchedules = new Map<string, WeekSchedule>();
 	private readonly pendingWrites = new Set<string>();
 	private readonly write = debounce((path: string) => {
 		void this.persist(path);
@@ -118,8 +130,15 @@ export class ScheduleStore {
 		return countTasks(schedule);
 	}
 
-	/** Queues a debounced write of a schedule that is already in memory. */
-	markDirty(path: string): void {
+	/**
+	 * Queues a debounced write of a schedule that is already in memory.
+	 *
+	 * The schedule is handed over with the edit rather than looked up when the
+	 * timer fires, because by then it may no longer be in the cache: what is
+	 * written has to be what the board shows, whatever this store still keeps.
+	 */
+	markDirty(path: string, schedule: WeekSchedule): void {
+		this.pendingSchedules.set(path, schedule);
 		this.write(path);
 	}
 
@@ -130,7 +149,12 @@ export class ScheduleStore {
 	 */
 	hasLocalEdits(path: string): boolean {
 		const entry = this.cache.get(path);
-		return entry !== undefined && serializeSchedule(entry.schedule, this.layout()) !== entry.raw;
+		if (entry === undefined) {
+			// Nothing cached, but a board is holding an edit: it counts as an
+			// unsaved change whether or not this store can compare it to disk.
+			return this.pendingSchedules.has(path);
+		}
+		return serializeSchedule(entry.schedule, this.layout()) !== entry.raw;
 	}
 
 	/**
@@ -143,7 +167,8 @@ export class ScheduleStore {
 	}
 
 	async flushAll(): Promise<void> {
-		await Promise.all([...this.cache.keys()].map((path) => this.persist(path)));
+		const paths = new Set([...this.cache.keys(), ...this.pendingSchedules.keys()]);
+		await Promise.all([...paths].map((path) => this.persist(path)));
 	}
 
 	/**
@@ -175,10 +200,15 @@ export class ScheduleStore {
 	async invalidate(): Promise<void> {
 		await this.flushAll();
 		this.cache.clear();
+		this.pendingSchedules.clear();
 	}
 
 	forget(path: string): void {
 		this.cache.delete(path);
+		// A board's unsaved edit goes with it: the caller is saying the week is
+		// to be read again, and a write left over from before would put the
+		// discarded version back on disk.
+		this.pendingSchedules.delete(path);
 	}
 
 	/** Flushes pending writes; called when the plugin unloads. */
@@ -217,22 +247,30 @@ export class ScheduleStore {
 
 	private async persist(path: string): Promise<boolean> {
 		const entry = this.cache.get(path);
-		if (!entry) {
+		// An edit a board handed over is newer than anything cached, and may be
+		// the only copy this store has.
+		const schedule = this.pendingSchedules.get(path) ?? entry?.schedule;
+		if (schedule === undefined) {
 			return true;
 		}
 
-		const content = serializeSchedule(entry.schedule, this.layout());
+		const content = serializeSchedule(schedule, this.layout());
 		const existing = this.vault.getFileByPath(path);
 
 		// Nothing to do when the file is already exactly what we would write.
-		if (content === entry.raw && existing instanceof TFile) {
+		if (entry !== undefined && content === entry.raw && existing instanceof TFile) {
+			this.pendingSchedules.delete(path);
 			return true;
 		}
 
 		this.pendingWrites.add(path);
 		try {
 			await this.writeFile(path, content);
-			entry.raw = content;
+			// Re-seated rather than patched: a write can come from a board whose
+			// week was dropped from the cache, and after writing it this store
+			// knows that week again — exactly as written.
+			this.cache.set(path, { schedule, raw: content });
+			this.pendingSchedules.delete(path);
 			return true;
 		} catch (error) {
 			console.error(`Weekly schedule: could not write ${path}`, error);

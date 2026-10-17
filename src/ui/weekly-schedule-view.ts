@@ -1190,7 +1190,9 @@ export class WeeklyScheduleView extends ItemView {
 
 	private save(): void {
 		if (this.schedule) {
-			this.plugin.store.markDirty(this.schedule.path);
+			// Handed over with the edit: the week this board shows is what has to
+			// be written, whether or not the store still has it cached.
+			this.plugin.store.markDirty(this.schedule.path, this.schedule);
 			this.updateStats(this.schedule);
 			this.updateReviewStats(this.schedule);
 		}

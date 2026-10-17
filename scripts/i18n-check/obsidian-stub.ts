@@ -57,6 +57,23 @@ export function setIcon(_el: unknown, _icon: string): void {
 	throw new Error('obsidian stub: icons cannot be drawn outside the app');
 }
 
+/**
+ * A file in the vault, as far as the store's two `instanceof` checks go.
+ *
+ * Those checks are the whole of what a write does with a path: whether the file
+ * is there decides between creating it and overwriting it. A base class with
+ * the same identity is enough to answer that, and it lets a check drive the
+ * store against a vault made of a `Map`.
+ */
+export class TFile {
+	constructor(readonly path: string) {}
+}
+
+/** A folder in the vault, for the same reason. */
+export class TFolder {
+	constructor(readonly path: string) {}
+}
+
 type StartUnit = 'day' | 'year' | 'isoWeek';
 
 class StubMoment {
