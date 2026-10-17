@@ -118,11 +118,13 @@ A cell is not a container holding tasks. It is the `### ` heading above a group 
 them in the week's file, and the work under it belongs to the week. That is what
 makes removing one an ordinary thing to do: **nothing is lost.** The heading the
 removed cell was written under is kept on file for ever, pointed at whatever took
-its work over, so a week written last year still reads into the right cell today.
-The dialog asks which cell that should be.
+its work over — the name you gave it, and the wording the plugin wrote when you had
+not named it yet — so a week written last year still reads into the right cell
+today. The dialog asks which cell that should be.
 
 A rename works the same way. Weeks already written keep the wording they have and go
-on reading correctly; what changes is the heading the *next* week gets. Bringing the
+on reading correctly, because the name a cell used to have is kept on file too; what
+changes is the heading the *next* week gets. Bringing the
 older ones into line is offered the moment a cell changes, and stays available
 afterwards as **Bring them up to date** in the same section. It rewrites the cell
 headings of every week in the folder — the tasks, the days and each week's review
@@ -291,8 +293,9 @@ went out as, so saving an edit never rewrites a file nobody touched — which is
 whole reason a vault that upgrades and configures nothing is left alone. And every
 heading any version has written still resolves to the cell it was written for,
 including the twelve wordings it used before these four stuck, in both languages,
-including a cell that has since been removed — the wording of a removed cell
-resolves to whatever took its work over, through any number of removals — and
+including a cell that has since been removed — both the name you gave it and the
+wording the plugin wrote for a cell you had not named yet resolve to whatever took
+its work over, through any number of removals — and
 including a layout of one cell, which answers to every one of them at once. It also covers what a layout may say: two cells
 answering to one name, a name that would break the heading line, a removal pointing
 at nothing or looping are each refused with one code, and the whole-vault alignment

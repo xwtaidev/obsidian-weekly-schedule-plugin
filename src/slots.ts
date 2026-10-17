@@ -15,10 +15,11 @@
  *   is why a vault that upgrades and configures nothing reads and writes the
  *   same bytes it always did — and `serializeSchedule` staying byte-stable is
  *   what stops every week being judged modified and rewritten.
- * - Every heading any version of this plugin has ever written keeps resolving,
- *   including the wordings used before it was translated, and including cells
- *   that are no longer in the layout: the heading names an id, and the id is
- *   still on file as having been taken over by another cell.
+ * - Every heading any version of this plugin has ever written keeps resolving:
+ *   the wordings it used before it was translated, the wordings it derives for
+ *   its own cells, the ids of cells nobody named, and — for a cell that is no
+ *   longer in the layout — both its id and the name it was called, which is kept
+ *   on file for ever so the weeks written under it still read.
  *
  * Pure: no Obsidian, no disk, no current-language lookups that the caller does
  * not pass in. `npm run check:slots` holds it to that.
@@ -42,7 +43,7 @@ import {
 } from './i18n';
 import { isRecord } from './utils/helpers';
 import type { Locale } from './i18n';
-import type { BuiltInSlot, QuadrantId, RetiredSlots, Slot } from './types';
+import type { BuiltInSlot, QuadrantId, RetiredHeadings, RetiredSlots, Slot } from './types';
 
 /**
  * A heading reduced to what two spellings of the same thing agree on: the
@@ -101,27 +102,28 @@ export interface SlotLayout {
 }
 
 /**
- * Reads a layout: the cells to draw, plus where the work of removed cells went.
+ * Reads a layout: the cells to draw, plus where the work of removed cells went,
+ * plus what those cells used to be called.
  *
- * The heading table is built in three passes, and the order is what resolves
- * every conflict there is:
+ * The heading table is built in passes, and the order is what resolves every
+ * conflict there is — a pass never overwrites an earlier one, so a wording two
+ * things could answer to belongs to the more particular of them:
  *
  * 1. what the user calls a cell (and a cell's own id, so a layout that is half
  *    configured cannot write a heading it will not recognize);
- * 2. the plugin's own wording for each of its four quadrants, in every
- *    language — kept for cells that are no longer in the layout, resolved
- *    through the retirement chain, which is what makes removing a cell a
- *    rename rather than a deletion;
- * 3. the wordings this plugin used before it was translated.
- *
- * A pass never overwrites an earlier one. A name the user typed therefore wins
- * over the plugin's own wording for the same words, which is only reachable
- * with data `validateSlots` rejects — but which has to resolve the same way
- * every time rather than depending on iteration order.
+ * 2. the ids and the names the layout no longer holds, resolved through the
+ *    retirement record — that is what makes removing a cell a merge rather than
+ *    a deletion, and the names are why: a cell of the user's own is written
+ *    under the name they typed, and nothing else in the plugin knows it;
+ * 3. the plugin's own wording for each of its four quadrants, in every
+ *    language, kept for cells that are no longer in the layout and resolved the
+ *    same way;
+ * 4. the wordings this plugin used before it was translated.
  */
 export function buildSlotLayout(
 	slots: readonly Slot[],
 	retired: RetiredSlots = {},
+	retiredHeadings: RetiredHeadings = {},
 ): SlotLayout {
 	const present = new Set(slots.map((slot) => slot.id));
 
@@ -169,6 +171,23 @@ export function buildSlotLayout(
 	}
 	for (const slot of slots) {
 		remember(slot.id, slot.id, null);
+	}
+	// The cells that are gone: their ids, which is what an unnamed cell of the
+	// user's own was written as, and the names they were called. Both are
+	// headings in weeks still on disk, and a `### ` line the table does not know
+	// names no cell at all — every task under it is read into nothing, and a
+	// week saved after that is saved without them.
+	for (const from of Object.keys(retired)) {
+		const target = resolve(from);
+		if (target !== null) {
+			remember(from, target, null);
+		}
+	}
+	for (const [wording, id] of Object.entries(retiredHeadings)) {
+		const target = resolve(id);
+		if (target !== null) {
+			remember(wording, target, null);
+		}
 	}
 	for (const slot of BUILT_IN_SLOTS) {
 		const target = resolve(slot.id);
@@ -552,10 +571,43 @@ export function retireSlot(
 	return next;
 }
 
+/**
+ * The record of former names once a cell stops being called `wording`.
+ *
+ * Called when a cell is renamed and when one is removed, because both are the
+ * same loss: the words a week used to be written with are about to stop being
+ * words any cell answers to. Nothing is ever taken back out — a week written
+ * under that name may be on disk for ever.
+ *
+ * One entry per wording rather than one per spelling of it: the table is keyed
+ * by the reduced form of a heading, so two names that reduce alike would be two
+ * entries one of which could never be looked up.
+ */
+export function retireHeading(
+	retiredHeadings: RetiredHeadings,
+	wording: string,
+	id: string,
+): Record<string, string> {
+	const next: Record<string, string> = { ...retiredHeadings };
+	const key = wording.trim();
+	if (key.length === 0) {
+		return next;
+	}
+	const reduced = normalizeHeading(key);
+	for (const existing of Object.keys(next)) {
+		if (normalizeHeading(existing) === reduced) {
+			delete next[existing];
+		}
+	}
+	next[key] = id;
+	return next;
+}
+
 /** The cells a stored settings file describes, and where the removed ones went. */
 export interface SlotConfig {
 	slots: Slot[];
 	retiredSlots: RetiredSlots;
+	retiredHeadings: RetiredHeadings;
 }
 
 /**
@@ -661,22 +713,7 @@ function readRetired(value: unknown, slots: readonly Slot[]): RetiredSlots {
 
 	const kept: Record<string, string> = {};
 	for (const [from, to] of candidates) {
-		const walked = new Set<string>();
-		let current = from;
-		let reached = false;
-		while (!walked.has(current)) {
-			if (present.has(current)) {
-				reached = true;
-				break;
-			}
-			walked.add(current);
-			const next = candidates.get(current);
-			if (next === undefined) {
-				break;
-			}
-			current = next;
-		}
-		if (reached) {
+		if (leadsTo(from, present, candidates)) {
 			kept[from] = to;
 		}
 	}
@@ -684,15 +721,84 @@ function readRetired(value: unknown, slots: readonly Slot[]): RetiredSlots {
 }
 
 /**
- * The cells a stored settings object describes, and the removals that still
- * mean something, as the one object every reader and writer wants.
+ * Whether following `id` through the removals reaches a cell the layout has.
+ *
+ * The one rule both records are read by: an entry that leads nowhere describes
+ * work no cell holds, so keeping it would only cost a walk on every read.
+ */
+function leadsTo(
+	id: string,
+	present: ReadonlySet<string>,
+	retired: ReadonlyMap<string, string>,
+): boolean {
+	const walked = new Set<string>();
+	let current = id;
+	while (!walked.has(current)) {
+		if (present.has(current)) {
+			return true;
+		}
+		walked.add(current);
+		const next = retired.get(current);
+		if (next === undefined) {
+			return false;
+		}
+		current = next;
+	}
+	return false;
+}
+
+/**
+ * The former names that still name a cell, read off a settings file.
+ *
+ * Read against the removals rather than on its own, because a name is kept for
+ * the cell it belonged to, and that cell is very often one that was removed: it
+ * is the cell the name resolves *through*. An entry pointing at a cell that is
+ * neither here nor on file is dropped by the same rule the removals are — a name
+ * no cell answers to changes no week either way.
+ *
+ * A name that a cell of the layout answers to now is kept rather than dropped:
+ * the layout gives the current cell first refusal, and the entry is what reads a
+ * week written before the name was handed on.
+ */
+function readRetiredHeadings(
+	value: unknown,
+	present: ReadonlySet<string>,
+	retired: RetiredSlots,
+): RetiredHeadings {
+	if (!isRecord(value)) {
+		return {};
+	}
+	const kept: Record<string, string> = {};
+	for (const [wording, id] of Object.entries(value)) {
+		if (
+			typeof id === 'string' &&
+			id.length > 0 &&
+			wording.trim().length > 0 &&
+			leadsTo(id, present, new Map(Object.entries(retired)))
+		) {
+			kept[wording] = id;
+		}
+	}
+	return kept;
+}
+
+/**
+ * The cells a stored settings object describes, the removals that still mean
+ * something, and the names those cells used to answer to — as the one object
+ * every reader and writer wants.
  *
  * The removals are read *against the cells that survived*, which is why the two
  * are answered together: an entry that would have led to a cell dropped as a
- * duplicate leads nowhere now.
+ * duplicate leads nowhere now. The names are read against both.
  */
 export function normalizeSlotConfig(stored: unknown): SlotConfig {
 	const record = isRecord(stored) ? stored : {};
 	const slots = readSlots(record.slots);
-	return { slots, retiredSlots: readRetired(record.retiredSlots, slots) };
+	const present = new Set(slots.map((slot) => slot.id));
+	const retiredSlots = readRetired(record.retiredSlots, slots);
+	return {
+		slots,
+		retiredSlots,
+		retiredHeadings: readRetiredHeadings(record.retiredHeadings, present, retiredSlots),
+	};
 }

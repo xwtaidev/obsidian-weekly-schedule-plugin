@@ -57,6 +57,23 @@ export interface BuiltInSlot {
 export type RetiredSlots = Readonly<Record<string, string>>;
 
 /**
+ * What the cells used to be called, as `wording → the cell that answered to it`.
+ *
+ * The other half of the record above, and it exists because a cell of the user's
+ * own is named by them: the id tells the layout nothing about the words its
+ * weeks were written with, and a name that is dropped when the cell is removed
+ * or renamed is a name the weeks written under it can no longer be read by —
+ * their tasks would be read into no cell at all, and a week that is then saved
+ * would be saved without them.
+ *
+ * Only names the user typed are worth keeping here. A cell nobody named is
+ * written as a wording the plugin derives, and those are known without this
+ * record — the four built-ins in every language, and a user's own unnamed cell
+ * by its id.
+ */
+export type RetiredHeadings = Readonly<Record<string, string>>;
+
+/**
  * A priority cell of one day. Wording is deliberately not stored: a label is
  * derived from the id and the current language when it is shown or written, so
  * switching languages cannot leave a stale label behind.

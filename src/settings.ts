@@ -1,13 +1,26 @@
 import { PluginSettingTab, Setting, setIcon } from 'obsidian';
 import { DEFAULT_FOLDER, DEFAULT_SLOTS, SLOT_LIMITS, WEEK_START_OPTIONS } from './constants';
 import { dayLabel, getLocale, t } from './i18n';
-import { nextSlot, normalizeSlotConfig, retireSlot, slotHeading, validateSlots } from './slots';
+import {
+	nextSlot,
+	normalizeSlotConfig,
+	retireHeading,
+	retireSlot,
+	slotHeading,
+	validateSlots,
+} from './slots';
 import { SlotMergeModal } from './ui/slot-merge-modal';
 import { isRecord, normalizeFolder } from './utils/helpers';
 import type { App } from 'obsidian';
 import type { TranslationKey } from './i18n';
 import type { SlotError } from './slots';
-import type { QuadrantId, RetiredSlots, Slot, TaskCommitKey } from './types';
+import type {
+	QuadrantId,
+	RetiredHeadings,
+	RetiredSlots,
+	Slot,
+	TaskCommitKey,
+} from './types';
 import type WeeklySchedulePlugin from './main';
 
 export interface WeeklyScheduleSettings {
@@ -35,6 +48,14 @@ export interface WeeklyScheduleSettings {
 	 * removed, and the heading in that week still names the id.
 	 */
 	retiredSlots: RetiredSlots;
+	/**
+	 * What the cells used to be called, as `wording → the cell that answered to
+	 * it`. Kept for ever, for the same reason as the record above and for the
+	 * gap it leaves: a cell of the user's own is written under the name they
+	 * typed, so the id alone cannot read a week written before that name was
+	 * changed or the cell removed.
+	 */
+	retiredHeadings: RetiredHeadings;
 }
 
 /**
@@ -52,6 +73,7 @@ export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
 	taskCommitKey: 'enter',
 	slots: DEFAULT_SLOTS.map((slot) => ({ ...slot })),
 	retiredSlots: {},
+	retiredHeadings: {},
 };
 
 /**
@@ -73,7 +95,7 @@ export const DEFAULT_SETTINGS: WeeklyScheduleSettings = {
  */
 export function normalizeSettings(stored: unknown): WeeklyScheduleSettings {
 	const file: Record<string, unknown> = isRecord(stored) ? stored : {};
-	const { slots, retiredSlots } = normalizeSlotConfig(file);
+	const { slots, retiredSlots, retiredHeadings } = normalizeSlotConfig(file);
 	const taskCommitKey = file.taskCommitKey;
 	return {
 		folder: typeof file.folder === 'string' ? file.folder : DEFAULT_SETTINGS.folder,
@@ -85,6 +107,7 @@ export function normalizeSettings(stored: unknown): WeeklyScheduleSettings {
 				: DEFAULT_SETTINGS.taskCommitKey,
 		slots,
 		retiredSlots,
+		retiredHeadings,
 	};
 }
 
@@ -430,7 +453,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	 * is about.
 	 */
 	private async commitCellName(index: number, typed: string): Promise<void> {
-		const { slots, retiredSlots } = this.plugin.settings;
+		const { slots, retiredSlots, retiredHeadings } = this.plugin.settings;
 		const slot = slots[index];
 		if (slot === undefined) {
 			return;
@@ -445,7 +468,13 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		const next = slots.map((item, at) =>
 			at === index ? { ...item, name: name.length > 0 ? name : null } : item,
 		);
-		await this.applyCells(next, retiredSlots);
+		// The name it answered to until now is a heading in weeks already written,
+		// and nothing else knows it: keep it, or those weeks stop being read.
+		await this.applyCells(
+			next,
+			retiredSlots,
+			slot.name === null ? retiredHeadings : retireHeading(retiredHeadings, slot.name, slot.id),
+		);
 	}
 
 	/**
@@ -464,7 +493,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	 * was created whatever the language is later.
 	 */
 	private async addCell(): Promise<void> {
-		const { slots, retiredSlots } = this.plugin.settings;
+		const { slots, retiredSlots, retiredHeadings } = this.plugin.settings;
 		if (slots.length >= SLOT_LIMITS.max) {
 			return;
 		}
@@ -472,7 +501,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		const slot = nextSlot(slots, retiredSlots, (count) =>
 			t('settings.slots.newName', { count }),
 		);
-		await this.applyCells([...slots, slot], retiredSlots);
+		await this.applyCells([...slots, slot], retiredSlots, retiredHeadings);
 		this.focusCell(slot.id);
 	}
 
@@ -493,7 +522,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	 * sits, so moving one moves everything about it.
 	 */
 	private async moveCell(from: number, to: number): Promise<void> {
-		const { slots, retiredSlots } = this.plugin.settings;
+		const { slots, retiredSlots, retiredHeadings } = this.plugin.settings;
 		const moved = slots[from];
 		const displaced = slots[to];
 		if (moved === undefined || displaced === undefined) {
@@ -502,7 +531,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		const next = [...slots];
 		next[from] = displaced;
 		next[to] = moved;
-		await this.applyCells(next, retiredSlots);
+		await this.applyCells(next, retiredSlots, retiredHeadings);
 	}
 
 	/**
@@ -529,15 +558,22 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	/**
 	 * Removes a cell, with its work going to the cell the dialog named.
 	 *
-	 * What that does to the record of removals is `retireSlot`'s business: the
-	 * wording the cell was written under stays on file for ever, which is what
-	 * makes a week written last year still read into the right cell.
+	 * Two records have to be kept, not one: where the id's work went, and what
+	 * the cell was called. The id is enough for a week written under a wording
+	 * the plugin derived — its own four, or a bare `s1` for a cell nobody named
+	 * — but a cell of the user's own was written under the name they typed, and
+	 * that name is the only thing in the week that says which cell it was. Drop
+	 * it and the tasks under it are read into no cell at all.
 	 */
 	private async removeCell(id: QuadrantId, target: QuadrantId): Promise<void> {
-		const { slots, retiredSlots } = this.plugin.settings;
+		const { slots, retiredSlots, retiredHeadings } = this.plugin.settings;
+		const slot = slots.find((item) => item.id === id);
 		await this.applyCells(
-			slots.filter((slot) => slot.id !== id),
+			slots.filter((item) => item.id !== id),
 			retireSlot(retiredSlots, id, target),
+			slot === undefined || slot.name === null
+				? retiredHeadings
+				: retireHeading(retiredHeadings, slot.name, id),
 		);
 	}
 
@@ -556,13 +592,14 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	private async applyCells(
 		slots: readonly Slot[],
 		retiredSlots: RetiredSlots,
+		retiredHeadings: RetiredHeadings,
 	): Promise<void> {
 		const errors = validateSlots(slots, retiredSlots);
 		if (errors.length > 0) {
 			this.showSlotError(errors[0] ?? null);
 			return;
 		}
-		await this.plugin.applySlotChange(slots, retiredSlots);
+		await this.plugin.applySlotChange(slots, retiredSlots, retiredHeadings);
 		this.refresh();
 		await this.plugin.alignSlotsAcrossWeeks();
 	}

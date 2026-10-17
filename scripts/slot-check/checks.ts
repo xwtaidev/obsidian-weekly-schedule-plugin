@@ -37,6 +37,7 @@ import {
 	nextSlotId,
 	normalizeHeading,
 	normalizeSlotConfig,
+	retireHeading,
 	retireSlot,
 	slotHeading,
 	validateSlots,
@@ -45,7 +46,7 @@ import type { SlotLayout } from '../../src/slots';
 import { syncLocale } from '../../src/i18n/index';
 import { parseSchedule, rewriteSlotHeadings, serializeSchedule } from '../../src/markdown';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../../src/settings';
-import type { DayId, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
+import type { DayId, RetiredHeadings, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
 
 const WEEK_START = '2026-03-16';
 const PATH = 'weekly-schedule/2026/2026-W12.md';
@@ -73,8 +74,12 @@ function cell(id: string, name: string | null = null, tone = 0): Slot {
 	return { id, name, tone };
 }
 
-function layout(slots: readonly Slot[], retired: RetiredSlots = {}) {
-	return buildSlotLayout(slots, retired);
+function layout(
+	slots: readonly Slot[],
+	retired: RetiredSlots = {},
+	retiredHeadings: RetiredHeadings = {},
+) {
+	return buildSlotLayout(slots, retired, retiredHeadings);
 }
 
 /** The cell a heading belongs to, under the layout a vault starts with. */
@@ -193,6 +198,88 @@ check(
 		(wording) => layout([cell('q1')], { q2: 'q1', q3: 'q1', q4: 'q1' }).heading(wording)?.id,
 	),
 	['q1', 'q1', 'q1', 'q1'],
+);
+
+// --- what a cell was called is on file for ever, like where it went -------
+// A cell of the user's own is written under the name they typed, and the id
+// says nothing about those words. So removing or renaming one used to lose its
+// weeks: the `### ` line named no cell, the tasks under it were read into
+// nothing, and a week saved after that was saved without them.
+const removedNamed = layout(DEFAULT_SLOTS, { s1: 'q1' }, { '格子 5': 's1' });
+check(
+	'a week written under the name of a removed cell reads into the cell that took it over',
+	removedNamed.heading('格子 5')?.id,
+	'q1',
+);
+check(
+	'and one written under the id of a cell nobody named needs no name on file',
+	layout(DEFAULT_SLOTS, { s1: 'q1' }).heading('s1')?.id,
+	'q1',
+);
+check(
+	'a former name that leads to no cell of the layout names nothing at all',
+	layout(DEFAULT_SLOTS, {}, { '格子 5': 's1' }).heading('格子 5')?.id ?? null,
+	null,
+);
+check(
+	'a cell of the layout that answers to a name keeps it, whatever a removed cell was called once',
+	layout([...DEFAULT_SLOTS, cell('s2', '格子 5', 4)], { s1: 'q1' }, { '格子 5': 's1' }).heading(
+		'格子 5',
+	)?.id,
+	's2',
+);
+
+// The whole of the report: the tasks of a removed cell have to arrive in the
+// cell that took them over, and stay there when the week is written again.
+const weekUnderRemovedCell = `# 2026-W12
+
+## 周一
+
+### 重要 · 紧急
+- [ ] 一件重要的事
+
+### 格子 5
+- [ ] 甲
+- [ ] 乙
+`;
+const afterRemoval = parseSchedule(weekUnderRemovedCell, WEEK_START, PATH, removedNamed, 'zh');
+check(
+	'its tasks are read into the cell that took them over',
+	afterRemoval.days
+		.find((day) => day.id === 'mon')
+		?.quadrants.find((quadrant) => quadrant.id === 'q1')
+		?.tasks.map((task) => task.text),
+	['一件重要的事', '甲', '乙'],
+);
+const rewritten = serializeSchedule(afterRemoval, removedNamed);
+check('and the week is written again without the old heading', rewritten.includes('### 格子 5'), false);
+check('with the work it now holds under the heading it now has', rewritten.split('\n').includes('- [ ] 甲'), true);
+
+// Renaming one is the same loss, caught before it happens.
+const renamed = layout([...DEFAULT_SLOTS, cell('s1', '读书', 4)], {}, { '格子 5': 's1' });
+check('a renamed cell still reads the weeks written under its old name', renamed.heading('格子 5')?.id, 's1');
+check('and answers to the name it has now', renamed.heading('读书')?.id, 's1');
+check(
+	'one wording is kept once, however it was spelled',
+	Object.keys(retireHeading({ '格子·5': 's1' }, '格子 5', 's2')),
+	['格子 5'],
+);
+check('a name of nothing but spaces is not a name', retireHeading({}, '   ', 's1'), {});
+
+// What a settings file may say about them.
+check(
+	'a former name is read off a settings file, against the removals it resolves through',
+	normalizeSlotConfig({
+		slots: DEFAULT_SLOTS,
+		retiredSlots: { s1: 'q1' },
+		retiredHeadings: { '格子 5': 's1', 无主: 's9' },
+	}).retiredHeadings,
+	{ '格子 5': 's1' },
+);
+check(
+	'a settings file written before names were kept reads as no names at all',
+	normalizeSlotConfig({ slots: DEFAULT_SLOTS, retiredSlots: {} }).retiredHeadings,
+	{},
 );
 
 // --- what a cell is written as --------------------------------------------
@@ -658,7 +745,7 @@ check(
 check(
 	'settings that hold nothing usable still leave a board that can be drawn',
 	normalizeSlotConfig({ slots: [], retiredSlots: 'nonsense' }),
-	{ slots: normalizeSlotConfig({}).slots, retiredSlots: {} },
+	{ slots: normalizeSlotConfig({}).slots, retiredSlots: {}, retiredHeadings: {} },
 );
 
 // A removal is read by following it to a cell the layout has, so a removal that

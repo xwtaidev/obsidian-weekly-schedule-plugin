@@ -40,7 +40,7 @@ import type { TranslationKey } from './i18n';
 import type { WeeklyScheduleSettings } from './settings';
 import type { Moment } from './utils/date';
 import type { SlotLayout } from './slots';
-import type { RetiredSlots, Slot } from './types';
+import type { RetiredHeadings, RetiredSlots, Slot } from './types';
 
 /**
  * Redraws a view's tab title after a language change.
@@ -548,7 +548,11 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 *
 	 * Called by the settings tab, which is the only thing that changes a layout.
 	 */
-	async applySlotChange(slots: readonly Slot[], retiredSlots: RetiredSlots): Promise<void> {
+	async applySlotChange(
+		slots: readonly Slot[],
+		retiredSlots: RetiredSlots,
+		retiredHeadings: RetiredHeadings,
+	): Promise<void> {
 		const view = this.viewOf();
 		await view?.commitPendingEdits();
 		await this.store.invalidate();
@@ -556,6 +560,7 @@ export default class WeeklySchedulePlugin extends Plugin {
 		// the array it passed would otherwise be editing what is saved.
 		this.settings.slots = slots.map((slot) => ({ ...slot }));
 		this.settings.retiredSlots = { ...retiredSlots };
+		this.settings.retiredHeadings = { ...retiredHeadings };
 		this.rebuildLayout();
 		await this.saveSettings();
 		await view?.refresh();
@@ -623,7 +628,11 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 * into a shape it was not read in.
 	 */
 	private rebuildLayout(): void {
-		this.layout = buildSlotLayout(this.settings.slots, this.settings.retiredSlots);
+		this.layout = buildSlotLayout(
+			this.settings.slots,
+			this.settings.retiredSlots,
+			this.settings.retiredHeadings,
+		);
 	}
 
 	/**
