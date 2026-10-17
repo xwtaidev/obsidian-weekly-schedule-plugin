@@ -130,6 +130,11 @@ afterwards as **Bring them up to date** in the same section. It rewrites the cel
 headings of every week in the folder — the tasks, the days and each week's review
 are left byte for byte.
 
+Any board that is open is closed the moment the cells change — a notice says so —
+and the board opened next is read from its file, under the cells as they now are.
+That is what keeps a pane that stayed open from going on showing, and saving, work
+that was read under cells that no longer exist.
+
 Colours come from the palette by position, and a cell keeps its colour when the
 cells are reordered. Eight is more than the board was drawn for, and a day of eight
 is taller than a day of four: a two-column board holding nothing measures 93px for
@@ -262,6 +267,7 @@ npm run check:i18n # verify the localization and file-heading rules
 npm run check:carry # verify the rules for carrying last week's work over
 npm run check:slots # verify the rules for the cells a day has
 npm run check:store # verify that an edit reaches its file
+npm run check:e2e   # verify the whole change-of-cells sequence, plugin and views real
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
 
@@ -313,6 +319,15 @@ the store no longer holds the week; a week a caller asked to forget is not
 written from the copy it forgot; and a week with no file yet is made, folder
 first.
 
+`npm run check:e2e` is the same question asked one layer up, where it counts: it
+drives a real plugin and a real board through the sequence a user actually walks
+— a cell is added in the settings, work is typed into it on a board that was
+already open, the cell is removed into another one — and reads the file. The
+settings tab, the store, the views and the alignment pass are the real ones; only
+the vault is a stand-in. It is what caught the ordering the last two fixes turned
+on, and it is the one channel that can: a mistake in how those pieces are
+arranged has no symptom until a whole week is missing.
+
 Reload the plugin after any change — Obsidian reads `main.js` only when a plugin
 loads.
 
@@ -352,6 +367,7 @@ scripts/
   carry-check/                   # The npm run check:carry helper
   slot-check/                    # The npm run check:slots helper
   store-check/                   # The npm run check:store helper
+  e2e-check/                     # The npm run check:e2e helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
 

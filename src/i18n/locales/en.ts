@@ -148,6 +148,10 @@ export const en = {
 	'settings.slots.field': 'The name of cell {index}',
 	'settings.slots.count': '{count} of the {max} cells a day can hold',
 	'settings.slots.add': 'Add a cell',
+	// A notice rather than a line on the page, because the panes it happens to
+	// are ones the user is not looking at while they are here.
+	'settings.slots.closed':
+		'Open boards were closed; open the board again and it will show the cells as they now are.',
 	// One wording per code `validateSlots` can answer with, so a code that is
 	// added without a sentence for it fails to compile rather than showing
 	// nothing where an explanation should be.

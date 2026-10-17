@@ -583,7 +583,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	 *
 	 * Everything structural goes through here, so there is one rule about what a
 	 * change may do and one order for doing it. Applying it is
-	 * `applySlotChange`'s job — the committing, the flushing and the redrawing
+	 * `applySlotChange`'s job — the committing, the flushing and the closing
 	 * all have to happen in one order, and that order is the whole of that
 	 * method. What follows is the offer to bring the weeks already written up to
 	 * date, which is asked here because the settings tab is where a rename is

@@ -534,11 +534,12 @@ export default class WeeklySchedulePlugin extends Plugin {
 	 * leaving it out moves work between cells:
 	 *
 	 * 1. what is on the board but still only in the DOM is committed, so it is
-	 *    part of the week rather than lost when the board is redrawn;
+	 *    part of the week rather than lost when the week is read again;
 	 * 2. the store is emptied *while the old layout is still in force*, so every
 	 *    pending week is written under the headings it was read with;
 	 * 3. only then do the settings change, and the layout with them;
-	 * 4. they are saved, and the board redraws under the new layout.
+	 * 4. they are saved, and the boards are closed. The one opened next is
+	 *    read from its file, under the cells as they now are.
 	 *
 	 * Step 2 is the one that is easy to leave out and hard to notice. An edit
 	 * starts a timer that writes the week when it fires, and flushing does not
@@ -563,8 +564,31 @@ export default class WeeklySchedulePlugin extends Plugin {
 		this.settings.retiredHeadings = { ...retiredHeadings };
 		this.rebuildLayout();
 		await this.saveSettings();
-		await view?.refresh();
-		await this.yearViewOf()?.refresh();
+		this.closeScheduleViews();
+	}
+
+	/**
+	 * Closes every board and year overview that is open, and says so.
+	 *
+	 * Closing rather than redrawing, because redrawing cannot unmake a read: a
+	 * board that stays open is a board the user can still type into while the
+	 * week it holds was read under cells that no longer exist, and such an edit
+	 * is written as a heading nothing answers to any more — the one save that
+	 * looks exactly like work being lost. The board opened next is read from its
+	 * file, so whatever it shows is whatever the week holds, and no pane can go
+	 * on displaying work that exists nowhere. The notice is because a pane that
+	 * vanishes without a word is a mystery of its own.
+	 */
+	private closeScheduleViews(): void {
+		const types = [VIEW_TYPE_WEEKLY_SCHEDULE, VIEW_TYPE_WEEKLY_SCHEDULE_YEAR];
+		const wasOpen = types.some((type) => this.app.workspace.getLeavesOfType(type).length > 0);
+		if (!wasOpen) {
+			return;
+		}
+		for (const type of types) {
+			this.app.workspace.detachLeavesOfType(type);
+		}
+		new Notice(t('settings.slots.closed'));
 	}
 
 	/**

@@ -13,6 +13,7 @@
 		"check:carry": "esbuild scripts/carry-check/checks.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/carry-check.mjs --alias:obsidian=./scripts/i18n-check/obsidian-stub.ts --log-level=warning && node node_modules/.cache/carry-check.mjs",
 		"check:slots": "esbuild scripts/slot-check/checks.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/slot-check.mjs --alias:obsidian=./scripts/i18n-check/obsidian-stub.ts --log-level=warning && node node_modules/.cache/slot-check.mjs",
 		"check:store": "esbuild scripts/store-check/checks.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/store-check.mjs --alias:obsidian=./scripts/i18n-check/obsidian-stub.ts --log-level=warning && node node_modules/.cache/store-check.mjs",
+		"check:e2e": "esbuild scripts/e2e-check/checks.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/e2e-check.mjs --alias:obsidian=./scripts/e2e-check/obsidian-stub.ts --log-level=warning && node node_modules/.cache/e2e-check.mjs",
 		"deploy": "node scripts/deploy.mjs",
 		"check:manifest": "node scripts/check-manifest.mjs"
 	},

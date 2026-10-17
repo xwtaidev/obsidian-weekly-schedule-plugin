@@ -100,6 +100,7 @@ export const zh: Translations = {
 	'settings.slots.field': '第 {index} 个格子的名字',
 	'settings.slots.count': '一天最多 {max} 个格子，现在有 {count} 个',
 	'settings.slots.add': '添加一个格子',
+	'settings.slots.closed': '已关闭打开的周看板，重新打开即可看到当前的格子。',
 	'settings.slots.error.limitMin': '一天至少得留一个格子。',
 	'settings.slots.error.limitMax': '一天最多 {max} 个格子。',
 	'settings.slots.error.duplicateId': '有两格共用了同一个内部编号，其中一格永远也用不上。',
