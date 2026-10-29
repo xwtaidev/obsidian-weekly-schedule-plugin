@@ -1,7 +1,7 @@
 import { TFile, TFolder } from 'obsidian';
 import { SAVE_DEBOUNCE_MS } from './constants';
 import { folderOf, parseWeekFileStem } from './utils/date';
-import { hasTaskText, parseSchedule, serializeSchedule } from './markdown';
+import { hasReviewText, hasTaskText, parseSchedule, serializeSchedule } from './markdown';
 import { debounce } from './utils/helpers';
 import type { Vault } from 'obsidian';
 import type { SlotLayout } from './slots';
@@ -36,6 +36,10 @@ interface CacheEntry {
 	schedule: WeekSchedule;
 	/** Markdown as last read from or written to disk, used for change detection. */
 	raw: string;
+	/** Serialized state at the last read or write, independent of file formatting. */
+	baseline: string;
+	/** Neither the current path nor its legacy fallback existed when read. */
+	missing: boolean;
 }
 
 export interface WeekStats {
@@ -68,6 +72,22 @@ export function countTasks(schedule: WeekSchedule): WeekStats {
 		done,
 		percent: total === 0 ? null : Math.round((done / total) * 100),
 	};
+}
+
+/**
+ * Whether a week holds anything worth a file of its own.
+ *
+ * A week with no task and no line of review serializes to its own title and
+ * nothing else, and a file holding one line is not a week anybody wrote: it is
+ * the shape `serializeSchedule` gives an empty week. Writing one is what turns
+ * a *path* into a folder, so it is asked before a file is created — see
+ * `persist`.
+ */
+function hasWeekContent(schedule: WeekSchedule): boolean {
+	const hasTask = schedule.days.some((day) =>
+		day.quadrants.some((quadrant) => quadrant.tasks.some(hasTaskText)),
+	);
+	return hasTask || hasReviewText(schedule.review);
 }
 
 /**
@@ -112,9 +132,10 @@ export class ScheduleStore {
 			return cached.schedule;
 		}
 
+		const missing = !this.hasSourceFile(path);
 		const content = await this.read(path);
 		const schedule = parseSchedule(content, weekStart, path, this.layout());
-		this.cache.set(path, { schedule, raw: content });
+		this.cache.set(path, { schedule, raw: content, baseline: serializeSchedule(schedule, this.layout()), missing });
 		return schedule;
 	}
 
@@ -154,6 +175,9 @@ export class ScheduleStore {
 			// unsaved change whether or not this store can compare it to disk.
 			return this.pendingSchedules.has(path);
 		}
+		if (entry.missing && !hasWeekContent(entry.schedule)) {
+			return false;
+		}
 		return serializeSchedule(entry.schedule, this.layout()) !== entry.raw;
 	}
 
@@ -192,7 +216,12 @@ export class ScheduleStore {
 		}
 
 		const schedule = parseSchedule(content, entry.schedule.weekStart, path, this.layout());
-		this.cache.set(path, { schedule, raw: content });
+		this.cache.set(path, {
+			schedule,
+			raw: content,
+			baseline: serializeSchedule(schedule, this.layout()),
+			missing: !this.hasSourceFile(path),
+		});
 		return true;
 	}
 
@@ -214,6 +243,12 @@ export class ScheduleStore {
 	/** Flushes pending writes; called when the plugin unloads. */
 	dispose(): void {
 		void this.flushAll();
+	}
+
+	private hasSourceFile(path: string): boolean {
+		const legacy = legacyPathFor(path);
+		return this.vault.getFileByPath(path) instanceof TFile ||
+			(legacy !== null && this.vault.getFileByPath(legacy) instanceof TFile);
 	}
 
 	private async read(path: string): Promise<string> {
@@ -256,9 +291,24 @@ export class ScheduleStore {
 
 		const content = serializeSchedule(schedule, this.layout());
 		const existing = this.vault.getFileByPath(path);
+		// A file moved or deleted since it was read should not be recreated by a
+		// flush of an unchanged board. An actual local edit still needs saving.
+		if (!(existing instanceof TFile) && entry && content === entry.baseline) {
+			this.pendingSchedules.delete(path);
+			return true;
+		}
 
 		// Nothing to do when the file is already exactly what we would write.
 		if (entry !== undefined && content === entry.raw && existing instanceof TFile) {
+			this.pendingSchedules.delete(path);
+			return true;
+		}
+
+		// A week read from neither path and still empty needs no file. Keep it
+		// untouched even if an external file arrived since the read: the create
+		// event will reload that file instead. A week read from either path must
+		// still be written when emptied, including the legacy fallback.
+		if (!hasWeekContent(schedule) && (entry?.missing ?? !this.hasSourceFile(path))) {
 			this.pendingSchedules.delete(path);
 			return true;
 		}
@@ -269,7 +319,7 @@ export class ScheduleStore {
 			// Re-seated rather than patched: a write can come from a board whose
 			// week was dropped from the cache, and after writing it this store
 			// knows that week again — exactly as written.
-			this.cache.set(path, { schedule, raw: content });
+			this.cache.set(path, { schedule, raw: content, baseline: content, missing: false });
 			this.pendingSchedules.delete(path);
 			return true;
 		} catch (error) {

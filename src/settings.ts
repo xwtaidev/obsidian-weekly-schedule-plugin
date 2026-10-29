@@ -202,20 +202,38 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(t('settings.folder.name'))
 			.setDesc(t('settings.folder.desc'))
-			.addText((text) =>
-				text
-					.setPlaceholder(DEFAULT_FOLDER)
-					.setValue(this.plugin.settings.folder)
-					.onChange(async (value) => {
-						const folder = normalizeFolder(value);
-						if (folder === this.plugin.settings.folder) {
-							return;
-						}
-						this.plugin.settings.folder = folder;
-						await this.plugin.saveSettings();
-						await this.plugin.handleSettingsChange();
-					}),
-			);
+			.addText((text) => {
+				text.setPlaceholder(DEFAULT_FOLDER).setValue(this.plugin.settings.folder);
+				// Committed on leaving the field or on Enter, not on every
+				// keystroke: the folder decides where every week is written, so a
+				// value that followed each letter typed would move the board to a
+				// folder that does not exist yet — and, before the store stopped
+				// creating files for empty weeks, made each of those half-typed
+				// folders real. The cells' names are committed the same way, and
+				// for the same reason.
+				const commit = async (): Promise<void> => {
+					const typed = text.getValue();
+					const folder = normalizeFolder(typed);
+					if (folder !== typed) {
+						// Show what the plugin files weeks under, so a leading,
+						// trailing or doubled slash does not outlive the visit.
+						text.setValue(folder);
+					}
+					if (folder === this.plugin.settings.folder) {
+						return;
+					}
+					this.plugin.settings.folder = folder;
+					await this.plugin.saveSettings();
+					await this.plugin.handleSettingsChange();
+				};
+				text.inputEl.addEventListener('blur', () => void commit());
+				text.inputEl.addEventListener('keydown', (event) => {
+					if (event.key === 'Enter') {
+						event.preventDefault();
+						text.inputEl.blur();
+					}
+				});
+			});
 
 		new Setting(containerEl)
 			.setName(t('settings.weekStart.name'))

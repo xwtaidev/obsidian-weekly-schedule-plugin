@@ -157,6 +157,11 @@ export default class WeeklySchedulePlugin extends Plugin {
 			}),
 		);
 		this.registerEvent(
+			this.app.vault.on('create', (file: TAbstractFile) => {
+				void this.handleFileChange(file.path);
+			}),
+		);
+		this.registerEvent(
 			this.app.vault.on('delete', (file: TAbstractFile) => {
 				void this.viewOf()?.handleFileDeleted(file.path);
 				void this.yearViewOf()?.handleFileChange(file.path);

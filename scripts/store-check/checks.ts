@@ -20,7 +20,9 @@
  * - an edit reaches the file even when the store no longer holds the week;
  * - a week a caller asked to forget is not written from the copy it forgot;
  * - a week held in memory but not cached is flushed on the way out;
- * - a week with nothing to write is not written, and one with no file is made.
+ * - a week with nothing to write is not written, and one with no file is made;
+ * - a week nobody wrote into gets neither a file nor the folders above it, which
+ *   is what a half-typed schedule folder used to leave behind (issue #1).
  *
  * Run with `npm run check:store`. The vault is a `Map` — the store's whole
  * contact with Obsidian is four methods and one `instanceof`.
@@ -295,6 +297,111 @@ console.log('a week whose file does not exist yet');
 	await sleep(DEBOUNCE);
 	check('the file is made, with the work in it', vault.text(PATH).includes('戊'), true);
 	check('and its folder first', vault.folders.has('weekly-schedule/2026'), true);
+}
+
+console.log('a week with no file and nothing in it');
+{
+	const vault = new FakeVault();
+	const layout: SlotLayout = buildSlotLayout(BASE, {}, {});
+	const pane = openBoard(vault, () => layout);
+	await pane.load();
+	// Unloading, changing the cells, any settings change: all of them flush
+	// every week the store holds, including one that was only ever looked at.
+	await pane.store.flushAll();
+	check('no file is made for a week nobody wrote into', vault.files.has(PATH), false);
+	check('and no folder is made to hold it', [...vault.folders], []);
+}
+
+console.log('a schedule folder typed one letter at a time');
+{
+	const vault = new FakeVault();
+	const layout: SlotLayout = buildSlotLayout(BASE, {}, {});
+	const store = new ScheduleStore(vault as never, () => layout);
+	const pathIn = (folder: string): string =>
+		folder.length > 0 ? `${folder}/2026/2026-W41.md` : '2026/2026-W41.md';
+
+	// The board is open on the week in the old folder. The settings field used
+	// to commit on every keystroke, and each commit is a refresh: flush what the
+	// store holds, then read the week under the folder typed so far.
+	await store.load(WEEK, PATH);
+	let typed = '';
+	for (const char of 'Templates/Weekly') {
+		typed += char;
+		await store.invalidate();
+		await store.load(WEEK, pathIn(typed));
+	}
+
+	// What the reporter of issue #1 saw: a folder per keystroke, each holding a
+	// week file with nothing in it.
+	check('no folder is made for a half-typed path', [...vault.folders], []);
+	check('and no week file is made in one', [...vault.files.keys()], []);
+}
+
+console.log('a week emptied by hand');
+{
+	const vault = freshVault();
+	const layout: SlotLayout = buildSlotLayout(BASE, {}, {});
+	const pane = openBoard(vault, () => layout);
+	await pane.load();
+	pane.cell('q1').tasks.splice(0);
+	pane.save();
+	await sleep(DEBOUNCE);
+	// The guard above must not stop a week from being written back empty: a
+	// task removed has to leave the file, or the next read brings it back.
+	check('the task is gone from the file', vault.text(PATH).includes('甲'), false);
+}
+
+console.log('a legacy week emptied by hand');
+{
+	const vault = new FakeVault();
+	vault.seed('weekly-schedule/2026-W41.md', '# 2026-W41\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 甲\n');
+	const pane = openBoard(vault, () => buildSlotLayout(BASE, {}, {}));
+	await pane.load();
+	pane.cell('q1').tasks.splice(0);
+	pane.save();
+	await pane.store.flush(PATH);
+	pane.store.forget(PATH);
+	await pane.load();
+	check('cleared legacy tasks stay cleared after reopening', pane.cell('q1').tasks.length, 0);
+}
+
+console.log('a week moved outside the store without local edits');
+{
+	const vault = freshVault();
+	const pane = openBoard(vault, () => buildSlotLayout(BASE, {}, {}));
+	await pane.load();
+	vault.files.delete(PATH);
+	await pane.store.invalidate();
+	check('flushing does not recreate the old file', vault.files.has(PATH), false);
+	check('flushing does not recreate its folders', [...vault.folders], []);
+}
+
+console.log('an empty week receives a file from outside');
+{
+	const vault = new FakeVault();
+	const pane = openBoard(vault, () => buildSlotLayout(BASE, {}, {}));
+	await pane.load();
+	await pane.store.flushAll();
+	check('the untouched empty week is clean', pane.store.hasLocalEdits(PATH), false);
+	vault.seed(PATH, '# 2026-W41\n\n## 周一\n\n### 重要 · 紧急\n- [ ] 外部任务\n');
+	// A flush before the event must not overwrite the newly arrived file.
+	await pane.store.flushAll();
+	check('flushing preserves the externally created file', vault.text(PATH).includes('外部任务'), true);
+	check('the external change is reloaded', await pane.store.reloadIfChanged(PATH), true);
+	pane.store.forget(PATH);
+	await pane.load();
+	check('the reloaded board shows the external task', pane.cell('q1').tasks[0]?.text, '外部任务');
+}
+
+console.log('a new week containing only a review');
+{
+	const vault = new FakeVault();
+	const pane = openBoard(vault, () => buildSlotLayout(BASE, {}, {}));
+	await pane.load();
+	pane.loaded.review.plan.push('Review only');
+	pane.save();
+	await pane.store.flush(PATH);
+	check('the review is written', vault.text(PATH).includes('Review only'), true);
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);

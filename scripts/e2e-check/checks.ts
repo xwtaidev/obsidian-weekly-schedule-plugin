@@ -55,6 +55,7 @@ function check(name: string, actual: unknown, expected: unknown): void {
 /** A vault held in a Map, with the members the migration helpers also use. */
 function makeVault(files: Record<string, string>) {
 	const contents = new Map<string, string>(Object.entries(files));
+	const listeners = new Map<string, (file: TFile) => void>();
 	const map = new Map<string, TFile>();
 	for (const path of Object.keys(files)) {
 		map.set(path, new TFile(path));
@@ -62,6 +63,7 @@ function makeVault(files: Record<string, string>) {
 	const folders = new Set<string>([FOLDER, `${FOLDER}/2026`]);
 	return {
 		contents,
+		listeners,
 		getFileByPath: (path: string) => map.get(path) ?? null,
 		getAbstractFileByPath: (path: string) =>
 			folders.has(path) ? new TFolder(path) : (map.get(path) ?? null),
@@ -87,7 +89,8 @@ function makeVault(files: Record<string, string>) {
 		async createFolder(path: string) {
 			folders.add(path);
 		},
-		on() {
+		on(event: string, callback: (file: TFile) => void) {
+			listeners.set(event, callback);
 			return {};
 		},
 	};
@@ -227,6 +230,30 @@ async function main(): Promise<void> {
 		serializeSchedule(parseSchedule(serialized, WS, PATH, plugin.slotLayout()), plugin.slotLayout()),
 		serialized,
 	);
+
+	console.log('a file created externally while an empty board is open');
+	const outsideVault = makeVault({});
+	const outsideApp: any = { vault: outsideVault, workspace: makeWorkspace() };
+	const outsidePlugin: any = new WeeklySchedulePlugin(outsideApp, {});
+	await outsidePlugin.onload();
+	const outsideLeaf: any = new WorkspaceLeaf(outsideApp);
+	const outsideView: any = new WeeklyScheduleView(outsideLeaf, outsidePlugin);
+	outsideLeaf.view = outsideView;
+	outsideApp.workspace.leaves.set(VIEW_TYPE_WEEKLY_SCHEDULE, [outsideLeaf]);
+	outsideView.weekStart = WS;
+	outsideView.renderedWeekStart = WS;
+	outsideView.schedule = await outsidePlugin.store.load(WS, PATH);
+	outsideView.render = async () => {
+		outsideView.schedule = await outsidePlugin.store.load(WS, PATH);
+	};
+	await outsideVault.create(PATH, initialRaw);
+	const createListener = outsideVault.listeners.get('create');
+	check('the plugin listens for file creation', typeof createListener, 'function');
+	createListener?.(outsideVault.getFileByPath(PATH)!);
+	await sleep(50);
+	check('the board reloads the created file', outsideView.schedule.days[0].quadrants[0].tasks[0]?.text, '甲');
+	await outsidePlugin.store.flushAll();
+	check('the external file survives a flush', outsideVault.contents.get(PATH)?.includes('甲'), true);
 
 	console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);
 	process.exit(failures === 0 ? 0 : 1);
