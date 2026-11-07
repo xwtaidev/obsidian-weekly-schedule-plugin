@@ -111,8 +111,8 @@ one today falls in, whatever week the board is showing.
 Four quadrants are one way to divide a day, and a costly one to keep: deciding which
 of the four a task belongs in is often more work than the task. So the cells are
 yours. **Settings → Weekly schedule → The cells a day has** lists them in the order
-the board draws them, each with a field for its name and buttons to move it up or
-down, to remove it, and to add another — up to eight.
+the board draws them, each with a field for its name, a row of colours, and buttons
+to move it up or down, to remove it, and to add another — up to eight.
 
 A cell is not a container holding tasks. It is the `### ` heading above a group of
 them in the week's file, and the work under it belongs to the week. That is what
@@ -135,10 +135,16 @@ and the board opened next is read from its file, under the cells as they now are
 That is what keeps a pane that stayed open from going on showing, and saving, work
 that was read under cells that no longer exist.
 
-Colours come from the palette by position, and a cell keeps its colour when the
-cells are reordered. Eight is more than the board was drawn for, and a day of eight
-is taller than a day of four: a two-column board holding nothing measures 93px for
-one cell, 290px for four and 551px for eight.
+Each cell wears one of eight colours, picked on the same line as its name, and keeps
+it when the cells are reordered — the order the cells are written in and the colour
+each one wears are two decisions. A colour can also be picked from a panel, for a
+hue the palette has none of: eight is what the board was solved for, not a limit on
+what you may want. Changing a colour is only a repaint: no heading changes, so no
+board is closed and no week is rewritten.
+
+Eight cells is more than the board was drawn for, and a day of eight is taller than
+a day of four: a two-column board holding nothing measures 93px for one cell, 290px
+for four and 551px for eight.
 
 ## How tasks are stored
 

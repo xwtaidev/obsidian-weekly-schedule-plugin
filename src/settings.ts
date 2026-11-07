@@ -1,5 +1,5 @@
 import { PluginSettingTab, Setting, setIcon } from 'obsidian';
-import { DEFAULT_FOLDER, DEFAULT_SLOTS, SLOT_LIMITS, WEEK_START_OPTIONS } from './constants';
+import { DEFAULT_FOLDER, DEFAULT_SLOTS, SLOT_LIMITS, TONE_COUNT, WEEK_START_OPTIONS } from './constants';
 import { dayLabel, getLocale, t } from './i18n';
 import {
 	nextSlot,
@@ -7,10 +7,12 @@ import {
 	retireHeading,
 	retireSlot,
 	slotHeading,
+	slotToneClass,
 	validateSlots,
 } from './slots';
 import { SlotMergeModal } from './ui/slot-merge-modal';
 import { isRecord, normalizeFolder } from './utils/helpers';
+import { normalizeColor } from './utils/color';
 import type { App } from 'obsidian';
 import type { TranslationKey } from './i18n';
 import type { SlotError } from './slots';
@@ -141,6 +143,7 @@ const SLOT_ERROR_KEYS: Record<SlotError, TranslationKey> = {
 	limitMax: 'settings.slots.error.limitMax',
 	duplicateId: 'settings.slots.error.duplicateId',
 	unknown: 'settings.slots.error.unknown',
+	color: 'settings.slots.error.color',
 	dangling: 'settings.slots.error.dangling',
 	cycle: 'settings.slots.error.cycle',
 	empty: 'settings.slots.error.empty',
@@ -149,6 +152,34 @@ const SLOT_ERROR_KEYS: Record<SlotError, TranslationKey> = {
 	reserved: 'settings.slots.error.reserved',
 	duplicate: 'settings.slots.error.duplicate',
 };
+
+/**
+ * What each palette position is called, in palette order.
+ *
+ * Named by hue rather than by number, because the list exists to choose a
+ * colour and "the third one" is not a colour. Length is held to `TONE_COUNT` by
+ * `check:slots`, so adding a position to the palette without a name for it
+ * fails there rather than showing a dot with nothing to announce it.
+ */
+export const TONE_NAME_KEYS: readonly TranslationKey[] = [
+	'settings.slots.colorName.rose',
+	'settings.slots.colorName.violet',
+	'settings.slots.colorName.blue',
+	'settings.slots.colorName.grey',
+	'settings.slots.colorName.amber',
+	'settings.slots.colorName.teal',
+	'settings.slots.colorName.magenta',
+	'settings.slots.colorName.green',
+];
+
+/**
+ * What the colour panel opens on the first time.
+ *
+ * A neutral mid grey, not a palette entry: opening on a colour that is already
+ * in use would make "pick a colour of your own" start by handing back a colour
+ * the palette has.
+ */
+const DEFAULT_CUSTOM_COLOR = '#888888';
 
 /**
  * Settings tab.
@@ -369,14 +400,17 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 	): void {
 		const layout = this.plugin.slotLayout();
 		const row = containerEl.createDiv({
-			cls: `weekly-schedule-slot-row weekly-schedule-slot-tone-${slot.tone}`,
+			cls: `weekly-schedule-slot-row ${slotToneClass('slot', slot)}`,
+			attr: { 'data-slot-id': slot.id },
 		});
+		// A colour of the user's own travels on the row as a custom property, so
+		// that the dot which shows it is painted by the same variable the board
+		// paints a cell with.
+		if (slot.color !== null) {
+			row.style.setProperty('--ws-accent', slot.color);
+		}
 
 		row.createDiv({ cls: 'weekly-schedule-slot-index', text: String(index + 1) });
-		// The cell's colour on the board, so the list and the board name the same
-		// thing twice rather than looking like two different lists.
-		const dot = row.createDiv({ cls: 'weekly-schedule-slot-dot' });
-		dot.setAttribute('aria-hidden', 'true');
 
 		const input = row.createEl('input', { type: 'text', cls: 'weekly-schedule-slot-name' });
 		input.dataset.slotId = slot.id;
@@ -407,6 +441,8 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			}
 		});
 
+		this.renderColors(row, slot, index);
+
 		this.actionButton(row, 'arrow-up', t('board.moveUp'), index === 0, () =>
 			void this.moveCell(index, index - 1),
 		);
@@ -423,6 +459,133 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			() => this.confirmRemoveCell(slot.id),
 			'weekly-schedule-slot-remove',
 		);
+	}
+
+	/**
+	 * The colours a cell may wear: the eight the palette has, then a picker of
+	 * the user's own.
+	 *
+	 * Radios rather than buttons, because a cell wears exactly one colour and
+	 * the browser already knows what that means: arrow keys move between them,
+	 * the chosen one is announced as chosen, and `:checked` is what draws the
+	 * ring. A row of buttons would have to spell all of that out by hand and
+	 * would still be a row of buttons.
+	 *
+	 * The picker is a button of its own with the real `<input type="color">`
+	 * kept out of sight, because the native control cannot be drawn as a dot: it
+	 * is a small rounded square with a system-drawn swatch inside it, and no
+	 * amount of styling makes it a peer of the eight beside it.
+	 */
+	private renderColors(row: HTMLElement, slot: Slot, index: number): void {
+		const group = row.createDiv({ cls: 'weekly-schedule-slot-colors' });
+		group.setAttribute('role', 'radiogroup');
+		group.setAttribute('aria-label', t('settings.slots.color', { index: index + 1 }));
+
+		for (let tone = 0; tone < TONE_COUNT; tone += 1) {
+			const dot = group.createEl('input', { type: 'radio', cls: 'weekly-schedule-slot-color' });
+			dot.name = `weekly-schedule-slot-color-${slot.id}`;
+			dot.value = String(tone);
+			dot.checked = slot.color === null && slot.tone === tone;
+			// The hue is read from the palette rather than repeated here: these
+			// dots and the board have to be the same eight colours, and the
+			// stylesheet is where that is decided.
+			dot.style.backgroundColor = `var(--ws-tone-${tone}-rail)`;
+			dot.setAttribute('aria-label', t(TONE_NAME_KEYS[tone] ?? 'settings.slots.colorName.grey'));
+			dot.addEventListener('change', () => {
+				if (dot.checked) {
+					void this.applyCellColor(row, index, tone, null);
+				}
+			});
+		}
+
+		// Out of the tab order and out of sight: the button below is the control,
+		// and this is only the system colour panel it opens.
+		const picker = group.createEl('input', {
+			type: 'color',
+			cls: 'weekly-schedule-slot-color-picker',
+		});
+		picker.tabIndex = -1;
+		picker.setAttribute('aria-hidden', 'true');
+		picker.value = slot.color ?? DEFAULT_CUSTOM_COLOR;
+
+		const custom = group.createEl('button', {
+			type: 'button',
+			cls: 'weekly-schedule-slot-color weekly-schedule-slot-color-custom',
+		});
+		custom.toggleClass('is-active', slot.color !== null);
+		if (slot.color !== null) {
+			custom.style.setProperty('--ws-accent', slot.color);
+		}
+		custom.setAttribute('aria-label', t('settings.slots.colorCustom'));
+		custom.addEventListener('click', () => picker.click());
+
+		// The dot follows the panel while it is being dragged, but nothing is
+		// saved until it closes: a settings file written on every pixel of a
+		// drag is a lot of writes for one decision.
+		picker.addEventListener('input', () => {
+			custom.style.setProperty('--ws-accent', picker.value);
+			custom.addClass('is-active');
+		});
+		picker.addEventListener('change', () => {
+			const color = normalizeColor(picker.value);
+			if (color !== null) {
+				void this.applyCellColor(row, index, slot.tone, color);
+			}
+		});
+	}
+
+	/**
+	 * Takes the colour the user picked, and repaints the one row it belongs to.
+	 *
+	 * The palette position is kept even when a colour of the user's own is set:
+	 * clearing that colour has to land somewhere, and the position the cell
+	 * already holds is the one that changes nothing else.
+	 *
+	 * The page is not rebuilt. Rebuilding would move the scroll and drop the
+	 * focus that a keyboard user has on the dot they just picked, and every
+	 * other row is already drawn correctly — one row's colour is one row's
+	 * change.
+	 */
+	private async applyCellColor(
+		row: HTMLElement,
+		index: number,
+		tone: number,
+		color: string | null,
+	): Promise<void> {
+		const { slots } = this.plugin.settings;
+		const slot = slots[index];
+		if (slot === undefined || (slot.tone === tone && slot.color === color)) {
+			return;
+		}
+		const next = slots.map((item, at) => (at === index ? { ...item, tone, color } : item));
+		await this.plugin.applySlotColor(next);
+		const painted = next[index] ?? { ...slot, tone, color };
+		this.paintCellColor(row, painted);
+	}
+
+	/** Repaints one row in place, so nothing on the page moves under the cursor. */
+	private paintCellColor(row: HTMLElement, slot: Slot): void {
+		row.className = `weekly-schedule-slot-row ${slotToneClass('slot', slot)}`;
+		if (slot.color === null) {
+			row.style.removeProperty('--ws-accent');
+		} else {
+			row.style.setProperty('--ws-accent', slot.color);
+		}
+
+		const custom = row.querySelector<HTMLElement>('.weekly-schedule-slot-color-custom');
+		if (custom !== null) {
+			custom.toggleClass('is-active', slot.color !== null);
+			if (slot.color === null) {
+				custom.style.removeProperty('--ws-accent');
+			}
+		}
+		const picker = row.querySelector<HTMLInputElement>('.weekly-schedule-slot-color-picker');
+		if (picker !== null) {
+			picker.value = slot.color ?? DEFAULT_CUSTOM_COLOR;
+			if (slot.color !== null) {
+				custom?.style.setProperty('--ws-accent', slot.color);
+			}
+		}
 	}
 
 	/**

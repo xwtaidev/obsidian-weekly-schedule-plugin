@@ -573,6 +573,29 @@ export default class WeeklySchedulePlugin extends Plugin {
 	}
 
 	/**
+	 * Takes new colours for the cells.
+	 *
+	 * Deliberately not `applySlotChange`, and the difference is the point: a
+	 * colour is not part of a week. No heading changes, so nothing has to be
+	 * committed, emptied, flushed or closed — the only thing that reads a colour
+	 * is a render, and a render is all this asks for. Sending a colour down the
+	 * structural path would close every open board for a change that a repaint
+	 * describes exactly.
+	 *
+	 * The layout is rebuilt all the same, because it is what hands a cell's
+	 * fields to a view; keeping the old one would leave the board painting the
+	 * colour the cell used to have.
+	 *
+	 * Public because the settings tab is where a colour is picked.
+	 */
+	async applySlotColor(slots: readonly Slot[]): Promise<void> {
+		this.settings.slots = slots.map((slot) => ({ ...slot }));
+		this.rebuildLayout();
+		await this.saveSettings();
+		this.viewOf()?.onSlotColorsChange();
+	}
+
+	/**
 	 * Closes every board and year overview that is open, and says so.
 	 *
 	 * Closing rather than redrawing, because redrawing cannot unmake a read: a

@@ -1,6 +1,6 @@
 import { Modal } from 'obsidian';
 import { dayLabel, getLocale, syncLocale, t, tp } from '../i18n';
-import { slotHeading } from '../slots';
+import { slotHeading, slotToneClass } from '../slots';
 import type { App } from 'obsidian';
 import type { CarryOverItem } from '../carry-over';
 import type { SlotLayout } from '../slots';
@@ -115,10 +115,13 @@ export class CarryOverModal extends Modal {
 			// way the board draws that cell's heading — the same words in the
 			// same colour — so which cell a row belongs to is legible before the
 			// words are read.
-			row.createSpan({
-				cls: `weekly-schedule-carry-tag weekly-schedule-carry-tag-tone-${slot.tone}`,
+			const tag = row.createSpan({
+				cls: `weekly-schedule-carry-tag ${slotToneClass('carry-tag', slot)}`,
 				text: slotHeading(this.options.layout, slot.id, getLocale()),
 			});
+			if (slot.color !== null) {
+				tag.style.setProperty('--ws-accent', slot.color);
+			}
 		}
 
 		if (item.alreadyThere) {

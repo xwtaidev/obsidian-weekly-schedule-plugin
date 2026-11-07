@@ -146,6 +146,19 @@ export const en = {
 	'settings.slots.newName': 'Cell {count}',
 	'settings.slots.usingDefault': 'Called {name} until you name it yourself',
 	'settings.slots.field': 'The name of cell {index}',
+	// The colours a cell may wear. Eight entries, in the order the palette
+	// declares them: the hue each one is, so the list reads as colours rather
+	// than as "colour 3".
+	'settings.slots.color': 'The colour of cell {index}',
+	'settings.slots.colorCustom': 'Pick a colour of your own',
+	'settings.slots.colorName.rose': 'Rose',
+	'settings.slots.colorName.violet': 'Violet',
+	'settings.slots.colorName.blue': 'Blue',
+	'settings.slots.colorName.grey': 'Grey',
+	'settings.slots.colorName.amber': 'Amber',
+	'settings.slots.colorName.teal': 'Teal',
+	'settings.slots.colorName.magenta': 'Magenta',
+	'settings.slots.colorName.green': 'Green',
 	'settings.slots.count': '{count} of the {max} cells a day can hold',
 	'settings.slots.add': 'Add a cell',
 	// A notice rather than a line on the page, because the panes it happens to
@@ -160,6 +173,8 @@ export const en = {
 	'settings.slots.error.duplicateId':
 		'Two cells share an internal key, so one of them could never be reached.',
 	'settings.slots.error.unknown': 'A cell has a colour the palette does not have.',
+	'settings.slots.error.color':
+		"A cell has a colour of its own that is not a colour, so nothing would paint it.",
 	'settings.slots.error.dangling':
 		'A removed cell points at a cell that is neither here nor on file.',
 	'settings.slots.error.cycle':

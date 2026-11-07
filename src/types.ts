@@ -29,8 +29,25 @@ export interface Slot {
 	id: QuadrantId;
 	/** The user's own name for the cell; `null` keeps the built-in wording. */
 	name: string | null;
-	/** Which colour to draw it in, `0..TONE_COUNT-1`. */
+	/**
+	 * Where the cell sits in the palette, `0..TONE_COUNT-1`.
+	 *
+	 * Always a real position even when `color` is set: it is what the cell falls
+	 * back to, and what the settings tab marks as chosen when the custom colour
+	 * is cleared.
+	 */
 	tone: number;
+	/**
+	 * A colour the user picked instead of a palette entry, as `#rrggbb`, or
+	 * `null` to use `tone`.
+	 *
+	 * Kept apart from `tone` rather than replacing it, because the palette is a
+	 * promise about legibility: every entry has a name colour that clears 4.5:1
+	 * on both themes, and a colour picked with a colour picker cannot make that
+	 * promise — so it is drawn differently (see `styles.css`) instead of being
+	 * treated as a ninth entry.
+	 */
+	color: string | null;
 }
 
 /**

@@ -73,6 +73,7 @@ export const DEFAULT_SLOTS: readonly Slot[] = BUILT_IN_SLOTS.map((slot) => ({
 	id: slot.id,
 	name: null,
 	tone: slot.tone,
+	color: null,
 }));
 
 /** How many cells a layout may hold, and how long one of their names may be. */

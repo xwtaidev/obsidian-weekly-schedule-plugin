@@ -17,7 +17,7 @@ import {
 } from '../i18n';
 import { hasTaskText, normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
-import { slotHeading } from '../slots';
+import { slotHeading, slotToneClass } from '../slots';
 import {
 	dateKey,
 	isSameDay,
@@ -298,6 +298,22 @@ export class WeeklyScheduleView extends ItemView {
 	 * the file's own heading language untouched.
 	 */
 	onLocaleChange(): void {
+		if (this.isOpen && this.schedule) {
+			this.renderBoard(this.schedule);
+		}
+	}
+
+	/**
+	 * Repaints the cells in the colours they now wear.
+	 *
+	 * Nothing is read and nothing is written: a colour lives in the settings, and
+	 * the week on screen is already the week it belongs to. The board is drawn
+	 * again from the schedule it holds — the same path a language change takes,
+	 * and for the same reason: the model did not change, only how it is drawn.
+	 *
+	 * Called by `applySlotColor`, which is the only thing that changes a colour.
+	 */
+	onSlotColorsChange(): void {
 		if (this.isOpen && this.schedule) {
 			this.renderBoard(this.schedule);
 		}
@@ -926,10 +942,17 @@ export class WeeklyScheduleView extends ItemView {
 		// for anyone looking at the DOM.
 		const cell = parent.createDiv({
 			cls: slot
-				? `weekly-schedule-cell weekly-schedule-cell-tone-${slot.tone}`
+				? `weekly-schedule-cell ${slotToneClass('cell', slot)}`
 				: 'weekly-schedule-cell',
 			attr: { 'data-slot-id': quadrant.id },
 		});
+		// A colour of the user's own is one number the palette cannot carry, so it
+		// travels as the property the palette would have set. The name colour is
+		// not set beside it: `-tone-custom` in the stylesheet derives that one from
+		// this hue, which is the only way it can follow the theme.
+		if (slot !== undefined && slot.color !== null) {
+			cell.style.setProperty('--ws-accent', slot.color);
+		}
 
 		const header = cell.createDiv({ cls: 'weekly-schedule-cell-header' });
 		// One name rather than the two halves of a priority, because a cell is

@@ -407,6 +407,27 @@ button.weekly-schedule-day-carry:focus-visible {
 	--ws-accent-label: var(--ws-tone-7-label);
 }
 
+/* A colour of the user's own, which is the one case the palette cannot answer:
+   a colour picker can produce a hue that is indistinguishable from the
+   background, and there is no pre-solved label tier for a colour that did not
+   exist when the stylesheet was written.
+
+   So the label is the hue *tinted into* the text colour rather than used as it
+   is: 25% of the hue, which is enough for the name to read as that colour's and
+   little enough that the result stays close to `--text-normal` on either theme.
+   Measured against #ffffff and #1e1e1e with white, black and the palette's own
+   hues as the worst cases, the label stays above 4.5:1 everywhere.
+
+   The rail is the hue itself, exactly as a palette entry's is: it is a 2px bar,
+   not text, and the user chose it.
+
+   The inline `--ws-accent` on the element is what both read. */
+.weekly-schedule-cell-tone-custom,
+.weekly-schedule-carry-tag-tone-custom,
+.weekly-schedule-slot-tone-custom {
+	--ws-accent-label: color-mix(in srgb, var(--ws-accent) 25%, var(--text-normal));
+}
+
 .weekly-schedule-cell-header {
 	display: flex;
 	align-items: center;
@@ -483,6 +504,20 @@ button.weekly-schedule-day-carry:focus-visible {
 	background-size: 9px;
 	background-position: center;
 	background-repeat: no-repeat;
+}
+
+/* A colour of the user's own is the one fill that cannot promise anything about
+   the tick drawn on it: that tick is a fixed white glyph, and a pale hue picked
+   in a colour panel leaves it invisible. The checkbox is the only place a
+   colour is painted *behind* something, so a cell coloured by hand keeps the
+   theme's accent here and the hand-picked hue for the rail and the name. */
+.weekly-schedule-cell-tone-custom .weekly-schedule-checkbox:hover,
+.weekly-schedule-cell-tone-custom .weekly-schedule-checkbox:checked {
+	border-color: var(--interactive-accent);
+}
+
+.weekly-schedule-cell-tone-custom .weekly-schedule-checkbox:checked {
+	background-color: var(--interactive-accent);
 }
 
 .weekly-schedule-task-text {
@@ -1381,14 +1416,111 @@ button.weekly-schedule-review-header:focus-visible {
 	user-select: none;
 }
 
-/* The colour the cell is drawn in on the board. Small on purpose: it is an
-   identifier, and eight of them should not read as eight alarms. */
-.weekly-schedule-slot-dot {
+/* The colours a cell may wear, as a row of dots between its name and its
+   buttons: the eight the palette has, then one that opens a colour panel.
+
+   Radios rather than buttons — see `renderColors` — so the states to draw are
+   `:checked` and `:focus-visible`, and both rings are shadows: a colour changing
+   must not move the row it is on. */
+.weekly-schedule-slot-colors {
+	display: flex;
 	flex: 0 0 auto;
-	width: 8px;
-	height: 8px;
+	align-items: center;
+	/* Wide enough that the ring around a chosen dot does not reach the dot
+	   beside it: the ring stands 3px off its dot, so two of them need 6px. */
+	gap: 7px;
+	position: relative;
+}
+
+/* The element name is in every selector here, not for its own sake: Obsidian
+   dresses `input[type='radio']` and `button:not(.clickable-icon)`, and a selector
+   without the tag loses to those on specificity no matter how many classes it
+   carries. */
+.weekly-schedule-slot-list .weekly-schedule-slot-color {
+	-webkit-appearance: none;
+	appearance: none;
+	flex: 0 0 auto;
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	border: none;
 	border-radius: 50%;
+	background-color: transparent;
+	/* Both, because Obsidian's own radio rule is `appearance: none` too and may
+	   carry a dot as an image rather than as a border. */
+	background-image: none;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+/* Selection is a ring drawn *outside* the dot, with a gap of the card's own
+   background between the two. An inset ring would eat the colour it is marking,
+   which is the one thing the dot exists to show. */
+.weekly-schedule-slot-list .weekly-schedule-slot-color:checked,
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-active {
+	box-shadow:
+		0 0 0 1.5px var(--setting-items-background, var(--background-primary-alt)),
+		0 0 0 3px var(--text-normal);
+}
+
+.weekly-schedule-slot-list .weekly-schedule-slot-color:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 3px;
+}
+
+/* The picker. It is not a ninth colour — it is the one action in a row of
+   choices — so it is drawn as an empty dashed circle with a `+` until a colour
+   of the user's own is chosen, and as that colour afterwards, marked by the ring
+   above. Nothing inside 14px can say "any colour" as clearly as "nothing chosen
+   yet" says it.
+
+   `height` and `min-height` are both reset because Obsidian's button rule sets
+   both: a dot left with the button's 30px minimum is an oval, and an oval is
+   not a dot. `box-sizing` is spelled out for the same reason the border is
+   one pixel: the dashed edge is part of the dot's 14px, not added to it. */
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	height: 14px;
+	min-height: 14px;
+	border: 1px dashed var(--text-muted);
+	background: none;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom::after {
+	content: '+';
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+}
+
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-active {
+	border-color: transparent;
 	background-color: var(--ws-accent, var(--text-faint));
+}
+
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-active::after {
+	content: none;
+}
+
+/* The real control: out of sight, out of the tab order, and only ever clicked
+   through the dot above. Not `display: none` — a control that is not rendered
+   cannot open the system colour panel. */
+.weekly-schedule-slot-color-picker {
+	position: absolute;
+	inset-inline-end: 0;
+	bottom: 0;
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* A name, not a form field: no box until it is pointed at, no box at all while

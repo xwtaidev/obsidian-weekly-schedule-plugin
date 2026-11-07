@@ -40,12 +40,13 @@ import {
 	retireHeading,
 	retireSlot,
 	slotHeading,
+	slotToneClass,
 	validateSlots,
 } from '../../src/slots';
 import type { SlotLayout } from '../../src/slots';
 import { syncLocale } from '../../src/i18n/index';
 import { parseSchedule, rewriteSlotHeadings, serializeSchedule } from '../../src/markdown';
-import { DEFAULT_SETTINGS, normalizeSettings } from '../../src/settings';
+import { DEFAULT_SETTINGS, TONE_NAME_KEYS, normalizeSettings } from '../../src/settings';
 import type { DayId, RetiredHeadings, RetiredSlots, Slot, WeekSchedule } from '../../src/types';
 
 const WEEK_START = '2026-03-16';
@@ -71,7 +72,7 @@ function use(language: string): void {
 }
 
 function cell(id: string, name: string | null = null, tone = 0): Slot {
-	return { id, name, tone };
+	return { id, name, tone, color: null };
 }
 
 function layout(
@@ -455,12 +456,12 @@ const nameFor = (count: number): string => `格子 ${count}`;
 check(
 	'a cell added to the four built-ins is the fifth cell: new key, next colour',
 	nextSlot(DEFAULT_SLOTS, {}, nameFor),
-	{ id: 's1', name: '格子 5', tone: 4 },
+	{ id: 's1', name: '格子 5', tone: 4, color: null },
 );
 check(
 	'... and a name already in use is stepped over rather than repeated',
-	nextSlot([cell('q1', '格子 5'), cell('q2'), cell('q3'), cell('q4')], {}, nameFor),
-	{ id: 's1', name: '格子 6', tone: 4 },
+	nextSlot([cell('q1', '格子 5', 0), cell('q2', null, 1), cell('q3', null, 2), cell('q4', null, 3)], {}, nameFor),
+	{ id: 's1', name: '格子 6', tone: 4, color: null },
 );
 check(
 	'... and wording that never changes with the count stops rather than spinning',
@@ -470,7 +471,7 @@ check(
 check(
 	'a cell added to a layout of one is the second, in the second colour',
 	nextSlot([cell('q1')], { q2: 'q1' }, nameFor),
-	{ id: 's1', name: '格子 2', tone: 1 },
+	{ id: 's1', name: '格子 2', tone: 1, color: null },
 );
 
 check(
@@ -730,6 +731,72 @@ check(
 		slots: [cell('q1', null, 99), cell('q2', null, -1), cell('q3', null, 1.5), cell('q4', null, 'red')],
 	}).slots.map((slot) => slot.tone),
 	[0, 1, 2, 3],
+);
+
+// A colour of the user's own, read the way every other value in a settings file
+// is: one form is accepted, every spelling of it arrives as that form, and
+// something that is not a colour at all leaves the cell painted by position
+// rather than dropping the cell.
+check(
+	"a colour of the user's own is kept, in the one form a stylesheet can take",
+	normalizeSlotConfig({
+		slots: [
+			{ id: 'q1', name: null, tone: 0, color: '  #AABBCC ' },
+			{ id: 'q2', name: null, tone: 1, color: '#a0b' },
+			{ id: 'q3', name: null, tone: 2, color: 'FF0000' },
+		],
+	}).slots.map((slot) => slot.color),
+	['#aabbcc', '#aa00bb', '#ff0000'],
+);
+check(
+	'something that is not a colour becomes no colour, and the cell stays a cell',
+	normalizeSlotConfig({
+		slots: [
+			{ id: 'q1', name: null, tone: 0, color: 'red' },
+			{ id: 'q2', name: null, tone: 1, color: '#12' },
+			{ id: 'q3', name: null, tone: 2, color: 42 },
+			{ id: 'q4', name: null, tone: 3 },
+		],
+	}).slots.map((slot) => slot.color),
+	[null, null, null, null],
+);
+check(
+	'a colour that is not a colour is refused rather than saved and silently dropped',
+	validateSlots([{ ...cell('q1'), color: 'red' }], {}),
+	['color'],
+);
+check(
+	"a colour of the user's own the palette cannot express is accepted",
+	validateSlots([{ ...cell('q1'), color: '#ff0000' }], {}),
+	[],
+);
+check(
+	"a cell's colour never reaches the file: only the heading it answers to does",
+	(() => {
+		const painted = buildSlotLayout(
+			DEFAULT_SLOTS.map((slot) => ({ ...slot, color: '#ff0000' })),
+		);
+		return save(read(FOUR_CELLS_ZH, painted), painted);
+	})(),
+	FOUR_CELLS_ZH,
+);
+check(
+	'one tone is spelled one way per surface, and a colour of the user\'s own is its own',
+	[
+		slotToneClass('cell', cell('q1', null, 5)),
+		slotToneClass('carry-tag', cell('q1', null, 5)),
+		slotToneClass('slot', { ...cell('q1', null, 5), color: '#ff0000' }),
+	],
+	[
+		'weekly-schedule-cell-tone-5',
+		'weekly-schedule-carry-tag-tone-5',
+		'weekly-schedule-slot-tone-custom',
+	],
+);
+check(
+	'every palette position has a name to announce it with',
+	TONE_NAME_KEYS.length,
+	TONE_COUNT,
 );
 check(
 	'a name is trimmed, and one of nothing but spaces is no name at all',

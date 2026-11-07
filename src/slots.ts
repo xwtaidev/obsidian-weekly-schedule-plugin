@@ -42,6 +42,7 @@ import {
 	reviewTitle,
 } from './i18n';
 import { isRecord } from './utils/helpers';
+import { normalizeColor } from './utils/color';
 import type { Locale } from './i18n';
 import type { BuiltInSlot, QuadrantId, RetiredHeadings, RetiredSlots, Slot } from './types';
 
@@ -234,8 +235,26 @@ export function buildSlotLayout(
  * caller that has no settings to hand still uses.
  */
 export const DEFAULT_SLOT_LAYOUT: SlotLayout = buildSlotLayout(
-	BUILT_IN_SLOTS.map((slot) => ({ id: slot.id, name: null, tone: slot.tone })),
+	BUILT_IN_SLOTS.map((slot) => ({ id: slot.id, name: null, tone: slot.tone, color: null })),
 );
+
+/**
+ * The class a surface paints this cell with.
+ *
+ * Three surfaces draw a cell in its colour — the board, the tag in the
+ * carry-over dialog and the list of cells in the settings tab — and all three
+ * read their two colours out of the class named here (in `styles.css` the three
+ * selectors share one rule). A colour of the user's own gets a class of its own
+ * rather than an inline pair of colours: `-tone-custom` is what says "derive the
+ * label colour from this hue", where a palette entry brings a label colour that
+ * was solved for it.
+ *
+ * The surface is spelled out rather than passed as a prefix, so a call site
+ * cannot invent a class the stylesheet has never heard of.
+ */
+export function slotToneClass(surface: 'cell' | 'carry-tag' | 'slot', slot: Slot): string {
+	return `weekly-schedule-${surface}-tone-${slot.color === null ? slot.tone : 'custom'}`;
+}
 
 /**
  * The heading a cell is written under: the user's name if they gave it one, the
@@ -327,6 +346,8 @@ export type SlotError =
 	| 'duplicateId'
 	/** A colour outside the palette. */
 	| 'unknown'
+	/** A colour of the user's own that is not a colour. */
+	| 'color'
 	/** A removal pointing at a cell that is neither here nor on file. */
 	| 'dangling'
 	/** Removals that point at each other, so neither has a destination. */
@@ -348,6 +369,7 @@ const SLOT_ERROR_ORDER: readonly SlotError[] = [
 	'limitMax',
 	'duplicateId',
 	'unknown',
+	'color',
 	'dangling',
 	'cycle',
 	'empty',
@@ -431,6 +453,15 @@ export function validateSlots(slots: readonly Slot[], retired: RetiredSlots): Sl
 			found.add('unknown');
 		}
 
+		// A colour of the user's own that does not parse would be painted as
+		// nothing at all, silently — see `normalizeColor`. Reading a settings
+		// file already turns one into no colour (`readSlot`); this is the same
+		// rule for a layout built in memory, so nothing can be saved that the
+		// next load would quietly change.
+		if (slot.color !== null && normalizeColor(slot.color) === null) {
+			found.add('color');
+		}
+
 		// A cell the plugin shipped keeps a wording to fall back on; one the user
 		// added has nothing to be called until they call it something.
 		if (slot.name === null) {
@@ -512,12 +543,19 @@ export function nextSlotId(slots: readonly Slot[], retired: RetiredSlots): strin
  * Three things are decided here, and each of them is a rule rather than a
  * formality: the key is one no cell has ever had, because a removed one stays in
  * the retirement record for ever and reusing it would file old weeks under the
- * wrong cell; the colour is the one for the position the cell lands in, so a
- * fifth cell is drawn in a colour of its own rather than the first one over
- * again; and the name is worded by the caller — the settings tab, which is the
+ * wrong cell; the colour is the first the palette has left, so a new cell is
+ * drawn in a colour of its own rather than in the one the cell above it happens
+ * to wear; and the name is worded by the caller — the settings tab, which is the
  * only place that knows what to call a cell nobody has named — bumped until it
  * is one nothing answers to, since two cells answering to one wording are two
  * cells a week could not tell apart.
+ *
+ * "Left" is counted over the cells on a palette entry, and a cell the user
+ * coloured by hand holds none: its colour is not in the palette, so it neither
+ * uses a position there nor makes one unavailable. Every position taken falls
+ * back to the first, which is a repeat rather than a failure — the palette has
+ * as many entries as a layout has cells, so this only happens once the user has
+ * recoloured the whole board.
  *
  * The bumping is bounded, because the wording is out of this function's hands:
  * one that did not change with the count would spin for ever. Running out of
@@ -541,8 +579,21 @@ export function nextSlot(
 	return {
 		id: nextSlotId(slots, retired),
 		name: nameFor(count),
-		tone: slots.length % TONE_COUNT,
+		tone: nextFreeTone(slots),
+		color: null,
 	};
+}
+
+/** The first palette position no cell is wearing, wrapping round at the end. */
+function nextFreeTone(slots: readonly Slot[]): number {
+	const used = new Set(
+		slots.filter((slot) => slot.color === null).map((slot) => slot.tone),
+	);
+	let tone = 0;
+	while (tone < TONE_COUNT && used.has(tone)) {
+		tone += 1;
+	}
+	return tone % TONE_COUNT;
 }
 
 /**
@@ -614,11 +665,14 @@ export interface SlotConfig {
  * One cell read off a settings file, or `null` when the entry is not a cell at
  * all.
  *
- * `fallbackTone` is used when the stored colour is not one the palette has: the
- * cell's position, which is the colour a cell that was never given one of its
- * own would have had. An id is the one field that cannot be replaced — a cell
- * without one cannot be reached by anything — so an entry that has no usable id
- * is not a cell and is dropped rather than guessed at.
+ * `fallbackTone` is used when the stored palette position is not one the palette
+ * has: the cell's position, which is the colour a cell that was never given one
+ * of its own would have had. A colour of the user's own is held to the same
+ * rule from the other side — one that does not parse becomes no colour at all,
+ * which paints the cell in its palette position rather than dropping it. An id
+ * is the one field that cannot be replaced — a cell without one cannot be
+ * reached by anything — so an entry that has no usable id is not a cell and is
+ * dropped rather than guessed at.
  */
 function readSlot(value: unknown, fallbackTone: number): Slot | null {
 	if (!isRecord(value)) {
@@ -637,6 +691,7 @@ function readSlot(value: unknown, fallbackTone: number): Slot | null {
 			typeof tone === 'number' && Number.isInteger(tone) && tone >= 0 && tone < TONE_COUNT
 				? tone
 				: fallbackTone,
+		color: normalizeColor(value.color),
 	};
 }
 
@@ -646,9 +701,10 @@ function readSlot(value: unknown, fallbackTone: number): Slot | null {
  * A stored settings object is data rather than code: it can be older than the
  * fields being read out of it, written by hand, or left half written by a
  * crash. So a value that cannot be honoured is *replaced* — an entry that is not
- * a cell is dropped, a colour off the palette becomes the cell's position, a
- * name of nothing but spaces becomes no name at all — while every value that can
- * be honoured is kept exactly as it was. Nothing is invented beyond that: a cell
+ * a cell is dropped, a palette position off the palette becomes the cell's own
+ * position, a colour that is not a colour becomes no colour at all, a name of
+ * nothing but spaces becomes no name at all — while every value that can be
+ * honoured is kept exactly as it was. Nothing is invented beyond that: a cell
  * whose colour cannot be read is still a cell, and the first cell is still the
  * first.
  *
