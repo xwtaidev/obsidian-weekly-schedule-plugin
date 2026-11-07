@@ -529,7 +529,13 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		picker.addEventListener('change', () => {
 			const color = normalizeColor(picker.value);
 			if (color !== null) {
-				void this.applyCellColor(row, index, slot.tone, color);
+				// The position to fall back on is read from the settings rather
+				// than from the cell this row was rendered with: the user may have
+				// chosen a palette entry since, and the closure was bound before
+				// that happened. Falling back to a position the cell no longer
+				// holds would surface the day the custom colour is cleared.
+				const current = this.plugin.settings.slots[index];
+				void this.applyCellColor(row, index, current?.tone ?? slot.tone, color);
 			}
 		});
 	}
