@@ -1323,6 +1323,66 @@ button.weekly-schedule-review-header:focus-visible {
 	color: var(--text-muted);
 }
 
+/* ---------- The dialog where a colour is picked ---------- */
+
+/* Wider than a question, narrower than the review dialog: one swatch, one
+   field, two buttons. */
+.weekly-schedule-color-modal {
+	width: 320px;
+	max-width: 90vw;
+}
+
+/* The swatch is the real `<input type="color">`, drawn large: clicking it
+   opens the system panel for the dragging, and the drag updates the field as
+   it goes. The browser draws its own small swatch inside, which the two
+   pseudo-elements below strip — what is left is a colour on a rounded
+   rectangle, the way everything else on this board is drawn. */
+.weekly-schedule-color-swatch {
+	display: block;
+	width: 100%;
+	height: 72px;
+	margin-bottom: var(--size-4-3, 12px);
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-m);
+	background: none;
+	cursor: pointer;
+}
+
+.weekly-schedule-color-swatch::-webkit-color-swatch-wrapper {
+	padding: 0;
+}
+
+.weekly-schedule-color-swatch::-webkit-color-swatch {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.weekly-schedule-color-hex {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2, 8px);
+}
+
+.weekly-schedule-color-hex-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	letter-spacing: 0.05em;
+}
+
+.weekly-schedule-color-hex-field {
+	flex: 1 1 auto;
+	width: auto;
+	font-family: var(--font-monospace, monospace);
+	font-variant-numeric: tabular-nums;
+}
+
+/* An answer the stylesheet cannot take: the button is disabled and the field
+   says which of the two is at fault. */
+.weekly-schedule-color-hex-field.has-error {
+	border-color: var(--text-error);
+}
+
 /* ---------- Settings: the cells a day has ---------- */
 
 /* Two sections, not a run of settings rows: what a day holds from now on, and
@@ -1519,22 +1579,6 @@ button.weekly-schedule-review-header:focus-visible {
 
 .weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-active::after {
 	content: none;
-}
-
-/* The real control: out of sight, out of the tab order, and only ever clicked
-   through the dot above. Not `display: none` — a control that is not rendered
-   cannot open the system colour panel. */
-.weekly-schedule-slot-color-picker {
-	position: absolute;
-	inset-inline-end: 0;
-	bottom: 0;
-	width: 14px;
-	height: 14px;
-	margin: 0;
-	padding: 0;
-	border: none;
-	opacity: 0;
-	pointer-events: none;
 }
 
 /* A name, not a form field: no box until it is pointed at, no box at all while

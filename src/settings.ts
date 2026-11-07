@@ -11,8 +11,8 @@ import {
 	validateSlots,
 } from './slots';
 import { SlotMergeModal } from './ui/slot-merge-modal';
+import { CustomColorModal } from './ui/color-picker-modal';
 import { isRecord, normalizeFolder } from './utils/helpers';
-import { normalizeColor } from './utils/color';
 import type { App } from 'obsidian';
 import type { TranslationKey } from './i18n';
 import type { SlotError } from './slots';
@@ -510,23 +510,20 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			});
 		}
 
-		// Out of the tab order and out of sight: the button below is the control,
-		// and this is only the system colour panel it opens.
-		const remembered = lastCustomColors.get(slot.id) ?? null;
-		const shown = slot.color ?? remembered;
 		// A colour the vault already holds is the last one this cell was given,
 		// whether or not this session picked it.
 		if (slot.color !== null) {
 			lastCustomColors.set(slot.id, slot.color);
 		}
-		const picker = group.createEl('input', {
-			type: 'color',
-			cls: 'weekly-schedule-slot-color-picker',
-		});
-		picker.tabIndex = -1;
-		picker.setAttribute('aria-hidden', 'true');
-		picker.value = shown ?? DEFAULT_CUSTOM_COLOR;
+		const remembered = lastCustomColors.get(slot.id) ?? null;
+		const shown = slot.color ?? remembered;
 
+		// The dot opens a dialog of the plugin's own. The system panel is where
+		// the dragging happens, but the browser draws it bare — no rounded
+		// corners it will honour, no button that says "this one" — and a colour
+		// that becomes part of every week deserves a confirmation it can be
+		// rethought in. The dialog wraps the panel and nothing else changes
+		// hands until its own button is pressed.
 		const custom = group.createEl('button', {
 			type: 'button',
 			cls: 'weekly-schedule-slot-color weekly-schedule-slot-color-custom',
@@ -534,35 +531,18 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 		custom.toggleClass('is-active', slot.color !== null);
 		// A colour of the user's own that is not on the cell right now is still
 		// worth seeing: the dot holds it, dashed rather than ringed, until the
-		// same panel or a palette entry replaces it.
+		// same dialog or a palette entry replaces it.
 		custom.toggleClass('is-set', shown !== null);
 		if (shown !== null) {
 			custom.style.setProperty('--ws-accent', shown);
 		}
 		custom.setAttribute('aria-label', t('settings.slots.colorCustom'));
-		custom.addEventListener('click', () => picker.click());
-
-		// The dot follows the panel while it is being dragged, but nothing is
-		// saved until it closes: a settings file written on every pixel of a
-		// drag is a lot of writes for one decision.
-		picker.addEventListener('input', () => {
-			custom.style.setProperty('--ws-accent', picker.value);
-			custom.addClass('is-active');
-		});
-		picker.addEventListener('change', () => {
-			const color = normalizeColor(picker.value);
-			if (color !== null) {
-				// The position to fall back on is read from the settings rather
-				// than from the cell this row was rendered with: the user may have
-				// chosen a palette entry since, and the closure was bound before
-				// that happened. Falling back to a position the cell no longer
-				// holds would surface the day the custom colour is cleared.
+		custom.addEventListener('click', () => {
+			new CustomColorModal(this.app, shown ?? DEFAULT_CUSTOM_COLOR, (color) => {
+				lastCustomColors.set(slot.id, color);
 				const current = this.plugin.settings.slots[index];
-				if (current !== undefined) {
-					lastCustomColors.set(current.id, color);
-				}
 				void this.applyCellColor(row, index, current?.tone ?? slot.tone, color);
-			}
+			}).open();
 		});
 	}
 
@@ -628,10 +608,6 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			} else {
 				custom.style.removeProperty('--ws-accent');
 			}
-		}
-		const picker = row.querySelector<HTMLInputElement>('.weekly-schedule-slot-color-picker');
-		if (picker !== null) {
-			picker.value = remembered ?? DEFAULT_CUSTOM_COLOR;
 		}
 	}
 

@@ -151,6 +151,9 @@ export const en = {
 	// than as "colour 3".
 	'settings.slots.color': 'The colour of cell {index}',
 	'settings.slots.colorCustom': 'Pick a colour of your own',
+	'settings.slots.colorCustom.title': 'Pick a colour',
+	'settings.slots.colorCustom.hexLabel': 'HEX',
+	'settings.slots.colorCustom.confirm': 'Use this colour',
 	'settings.slots.colorName.rose': 'Rose',
 	'settings.slots.colorName.violet': 'Violet',
 	'settings.slots.colorName.blue': 'Blue',
