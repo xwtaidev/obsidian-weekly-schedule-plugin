@@ -572,6 +572,16 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			row.style.setProperty('--ws-accent', slot.color);
 		}
 
+		// The palette dots follow as well. A radio the browser checked stays
+		// checked until something says otherwise, and a row where the hand-picked
+		// colour wears the ring while an earlier choice still wears one too is a
+		// row announcing two colours at once.
+		for (const dot of Array.from(
+			row.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
+		)) {
+			dot.checked = slot.color === null && dot.value === String(slot.tone);
+		}
+
 		const custom = row.querySelector<HTMLElement>('.weekly-schedule-slot-color-custom');
 		if (custom !== null) {
 			custom.toggleClass('is-active', slot.color !== null);
