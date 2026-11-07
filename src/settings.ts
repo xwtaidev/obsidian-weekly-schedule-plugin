@@ -130,6 +130,18 @@ export function isTaskCommitKey(value: string): value is TaskCommitKey {
 }
 
 /**
+ * The last colour each cell was given by hand, for this session.
+ *
+ * Switching a cell back to a palette entry is a choice about what to draw *now*;
+ * the colour picked for it is kept here rather than thrown away, so going back
+ * and forth never costs a re-pick. It is a convenience, not state: the only
+ * reader is the cell's own dot, and a session that ends takes it with it. An id
+ * is never reused, so a removed cell leaves nothing here that can be picked up
+ * by the wrong row.
+ */
+const lastCustomColors = new Map<string, string>();
+
+/**
  * What each failure of a layout is called.
  *
  * A code rather than a sentence, because the rule is in the pure module and the
@@ -500,21 +512,32 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 
 		// Out of the tab order and out of sight: the button below is the control,
 		// and this is only the system colour panel it opens.
+		const remembered = lastCustomColors.get(slot.id) ?? null;
+		const shown = slot.color ?? remembered;
+		// A colour the vault already holds is the last one this cell was given,
+		// whether or not this session picked it.
+		if (slot.color !== null) {
+			lastCustomColors.set(slot.id, slot.color);
+		}
 		const picker = group.createEl('input', {
 			type: 'color',
 			cls: 'weekly-schedule-slot-color-picker',
 		});
 		picker.tabIndex = -1;
 		picker.setAttribute('aria-hidden', 'true');
-		picker.value = slot.color ?? DEFAULT_CUSTOM_COLOR;
+		picker.value = shown ?? DEFAULT_CUSTOM_COLOR;
 
 		const custom = group.createEl('button', {
 			type: 'button',
 			cls: 'weekly-schedule-slot-color weekly-schedule-slot-color-custom',
 		});
 		custom.toggleClass('is-active', slot.color !== null);
-		if (slot.color !== null) {
-			custom.style.setProperty('--ws-accent', slot.color);
+		// A colour of the user's own that is not on the cell right now is still
+		// worth seeing: the dot holds it, dashed rather than ringed, until the
+		// same panel or a palette entry replaces it.
+		custom.toggleClass('is-set', shown !== null);
+		if (shown !== null) {
+			custom.style.setProperty('--ws-accent', shown);
 		}
 		custom.setAttribute('aria-label', t('settings.slots.colorCustom'));
 		custom.addEventListener('click', () => picker.click());
@@ -535,6 +558,9 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 				// that happened. Falling back to a position the cell no longer
 				// holds would surface the day the custom colour is cleared.
 				const current = this.plugin.settings.slots[index];
+				if (current !== undefined) {
+					lastCustomColors.set(current.id, color);
+				}
 				void this.applyCellColor(row, index, current?.tone ?? slot.tone, color);
 			}
 		});
@@ -576,6 +602,7 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			row.style.removeProperty('--ws-accent');
 		} else {
 			row.style.setProperty('--ws-accent', slot.color);
+			lastCustomColors.set(slot.id, slot.color);
 		}
 
 		// The palette dots follow as well. A radio the browser checked stays
@@ -588,19 +615,23 @@ export class WeeklyScheduleSettingTab extends PluginSettingTab {
 			dot.checked = slot.color === null && dot.value === String(slot.tone);
 		}
 
+		// The dot keeps the last colour picked for this cell, on or off: going
+		// back to the palette changes what the cell wears, not what the user
+		// once had in mind.
+		const remembered = slot.color ?? lastCustomColors.get(slot.id) ?? null;
 		const custom = row.querySelector<HTMLElement>('.weekly-schedule-slot-color-custom');
 		if (custom !== null) {
 			custom.toggleClass('is-active', slot.color !== null);
-			if (slot.color === null) {
+			custom.toggleClass('is-set', remembered !== null);
+			if (remembered !== null) {
+				custom.style.setProperty('--ws-accent', remembered);
+			} else {
 				custom.style.removeProperty('--ws-accent');
 			}
 		}
 		const picker = row.querySelector<HTMLInputElement>('.weekly-schedule-slot-color-picker');
 		if (picker !== null) {
-			picker.value = slot.color ?? DEFAULT_CUSTOM_COLOR;
-			if (slot.color !== null) {
-				custom?.style.setProperty('--ws-accent', slot.color);
-			}
+			picker.value = remembered ?? DEFAULT_CUSTOM_COLOR;
 		}
 	}
 

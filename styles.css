@@ -1498,6 +1498,20 @@ button.weekly-schedule-review-header:focus-visible {
 	line-height: 1;
 }
 
+/* A colour of the user's own that is not on the cell right now. It is kept
+   rather than forgotten — going back to the palette changes what the cell
+   wears, not what the user had in mind — and the dashed edge is what says so:
+   a real colour, held but not chosen. `background-clip` keeps the fill inside
+   the dashes, so the hue does not leak into the gaps of its own border. */
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-set {
+	background-color: var(--ws-accent, var(--text-faint));
+	background-clip: padding-box;
+}
+
+.weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-set::after {
+	content: none;
+}
+
 .weekly-schedule-slot-list button.weekly-schedule-slot-color-custom.is-active {
 	border-color: transparent;
 	background-color: var(--ws-accent, var(--text-faint));
