@@ -1,5 +1,7 @@
 # Weekly Schedule
 
+English · [简体中文](README_zh.md)
+
 Plan and review your week inside Obsidian. One board per week, every day split into
 priority cells you name yourself, and a whole year you can scan at a glance.
 
@@ -48,6 +50,43 @@ in dark mode:
 ![The year overview in dark mode](assets/year-dark.png)
 
 </details>
+
+## Reviewing the week
+
+The eighth cell of the board is the week's own review, drawn as a column like a
+day's and taking the two cells the seventh day leaves over. It opens on the four
+steps of PDCA — **Plan**, **Do**, **Check**, **Act** — and each step holds as many
+lines as you want: what you set out to do, what actually got done, where it fell
+short, and what to change next week.
+
+A step with nothing in it shows its question as a row you can click, so a week you
+have not reviewed yet is four questions rather than four blank boxes. Once a step
+holds a line, `Enter` at the end of it opens the next one and the row that would
+add one is gone — the same shape a priority cell has. A line can be moved or
+dropped from the controls on it, or from the right-click menu, and only within its
+own step: the four are a frame, not a pile.
+
+The panel folds down to its heading, which carries the week's completion rate
+beside it, and that heading is the whole handle — folded, the board shows one line
+where two empty cells would be. Folding is a way of looking at the week, not a
+decision about it: nothing is written and nothing is dropped either way.
+
+Review lines are written to the same file, after the days, under a heading of
+their own:
+
+```markdown
+## Review
+
+### Plan
+- Ship 0.7.0
+
+### Do
+- Shipped, two days late
+```
+
+A step holding nothing earns no heading, and a week with all four empty earns none
+either, so a week nobody reviewed leaves no trace in the file. Review lines are not
+tasks: they are not counted in the week's totals and are never carried over.
 
 ## Jump to any week
 
@@ -271,6 +310,9 @@ Requires Obsidian **1.5.7** or later.
 ## Development
 
 Requires Node.js 18+.
+
+`README_zh.md` is the Chinese README: it mirrors everything above this section and
+points here for the rest, so a change to how the plugin behaves belongs in both.
 
 ```bash
 npm install
