@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-weekly-schedule-plugin",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Plan each week in one to eight priority cells you name yourself, stored as plain Markdown you can edit by hand.",
 	"main": "main.js",
 	"type": "module",
