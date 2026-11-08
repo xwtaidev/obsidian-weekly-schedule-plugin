@@ -54,6 +54,7 @@ export const zh: Translations = {
 	'board.moveUp': '上移',
 	'board.moveDown': '下移',
 	'board.delete': '删除',
+	'board.dragTask': '拖动到其他日期或格子',
 	'board.weekLabel': '{year} 年第 {week} 周 · {range}',
 
 	'board.stats.tasks': '本周 {count} 项',

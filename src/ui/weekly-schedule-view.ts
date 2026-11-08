@@ -15,6 +15,7 @@ import {
 	t,
 	tp,
 } from '../i18n';
+import { cellIndexAt, dropIndexBefore, moveTaskToCell } from '../board';
 import { hasTaskText, normalizeTaskText } from '../markdown';
 import { countTasks } from '../store';
 import { slotHeading, slotToneClass } from '../slots';
@@ -32,7 +33,7 @@ import { YEAR_VIEW_ICON } from './weekly-schedule-year-view';
 import type { Moment } from '../utils/date';
 import type { WorkspaceLeaf } from 'obsidian';
 import type WeeklySchedulePlugin from '../main';
-import type { Day, Quadrant, ReviewSectionId, Task, WeekSchedule } from '../types';
+import type { Day, DayId, Quadrant, ReviewSectionId, Task, WeekSchedule } from '../types';
 
 export const VIEW_ICON = 'calendar-days';
 
@@ -47,6 +48,26 @@ export const VIEW_ICON = 'calendar-days';
  * no bar left to be mistaken for the edge of a container.
  */
 const DAY_CARRY_ICON = 'corner-down-right';
+
+/**
+ * The drag's own type, which is how a drop tells this board's rows from a note's
+ * text being dragged across it.
+ *
+ * The payload of a drag is hidden from the page until the drop, so during
+ * `dragover` the list of types is all a target may know — which is enough, since
+ * the question here is only whether the row is ours.
+ */
+const DRAG_TYPE = 'application/x-weekly-schedule-task';
+
+/**
+ * What keeps the pointer to itself inside a row: the field the text is written
+ * in, and the controls that move and drop it.
+ *
+ * A press on either has a meaning of its own — selecting a word, pressing a
+ * button — and a row that turned that press into a drag would be taking the
+ * gesture away from the thing it landed on.
+ */
+const ROW_KEEPS_POINTER = '.weekly-schedule-task-text, .weekly-schedule-row-controls, input';
 
 /**
  * Layout targets for the day grid.
@@ -121,6 +142,23 @@ export class WeeklyScheduleView extends ItemView {
 	private reviewIsOpen(): boolean {
 		return this.reviewOpen ?? true;
 	}
+
+	/**
+	 * The row being dragged, if one is — what it is called, not the row itself.
+	 *
+	 * A drag outlives a redraw: the week can be replaced by a change made
+	 * elsewhere while the pointer is down, and a row held from before that is a
+	 * row the board no longer shows. The id is looked up again on the drop.
+	 */
+	private drag: { taskId: string } | null = null;
+	/** Where the dragged row would land, and the line drawn to say so. */
+	private dropAt: {
+		dayId: DayId;
+		slotId: string;
+		beforeTaskId: string | null;
+		cell: HTMLElement;
+		line: HTMLElement | null;
+	} | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -384,6 +422,9 @@ export class WeeklyScheduleView extends ItemView {
 	}
 
 	private renderBoard(schedule: WeekSchedule): void {
+		// A redraw builds every row again, so a drag in flight ends here: the row
+		// it was carrying is gone, and so is the place it was going to land.
+		this.endDrag();
 		this.contentEl.empty();
 		this.renderToolbar();
 		this.boardEl = this.contentEl.createDiv({ cls: 'weekly-schedule-board' });
@@ -393,6 +434,7 @@ export class WeeklyScheduleView extends ItemView {
 		// leaves over.
 		this.renderReview(schedule);
 		this.renderStats(schedule);
+		this.addDropHandlers();
 
 		// Now that the grid exists, fit it to the pane.
 		this.updateColumns();
@@ -853,6 +895,10 @@ export class WeeklyScheduleView extends ItemView {
 		}
 
 		const column = board.createDiv({ cls: 'weekly-schedule-day' });
+		// Which day the column is, so a drop can name its target rather than
+		// point at an element: the column it was aimed at may be drawn again
+		// before the pointer comes up.
+		column.dataset.dayId = day.id;
 		const header = column.createDiv({ cls: 'weekly-schedule-day-header' });
 		header.createSpan({ cls: 'weekly-schedule-day-name', text: dayLabel(day.id) });
 		const dateEl = header.createSpan({ cls: 'weekly-schedule-day-date' });
@@ -995,6 +1041,8 @@ export class WeeklyScheduleView extends ItemView {
 	private renderTask(parent: HTMLElement, quadrant: Quadrant, task: Task): void {
 		const row = parent.createDiv({ cls: 'weekly-schedule-task' });
 		row.toggleClass('is-done', task.done);
+		row.dataset.taskId = task.id;
+		this.makeDraggable(row, task);
 
 		const checkbox = row.createEl('input', {
 			cls: 'weekly-schedule-checkbox',
@@ -1102,6 +1150,226 @@ export class WeeklyScheduleView extends ItemView {
 			);
 			menu.showAtMouseEvent(event);
 		});
+	}
+
+	/**
+	 * Makes a row a thing that can be picked up and put down in another cell.
+	 *
+	 * The handle comes first because without it the gesture is invisible: the
+	 * text of a row keeps the pointer for selecting, which is what a line of text
+	 * is for, so a drag that began there would be a selection the user meant to
+	 * make. The handle sits in the cell's gutter rather than in the row and costs
+	 * it no width — a day's column is as narrow as 232px.
+	 */
+	private makeDraggable(row: HTMLElement, task: Task): void {
+		const grip = row.createDiv({
+			cls: 'weekly-schedule-grip',
+			attr: { role: 'img', 'aria-label': t('board.dragTask') },
+		});
+		setIcon(grip, 'grip-vertical');
+
+		// What a press means is settled where it starts, not when the pointer
+		// moves: the text keeps it for selecting and the row's own controls keep
+		// it for clicking — a press there that turned into a drag would be a click
+		// that never arrived. Everything else, the handle above all, lifts the row.
+		row.addEventListener('mousedown', (event) => {
+			const target = event.target instanceof HTMLElement ? event.target : null;
+			row.draggable = target?.closest(ROW_KEEPS_POINTER) === null;
+		});
+		row.addEventListener('dragstart', (event) => this.startDrag(row, task, event));
+		row.addEventListener('dragend', () => {
+			row.draggable = false;
+			this.endDrag();
+		});
+	}
+
+	/**
+	 * Takes the row up, and leaves behind what the drop will need.
+	 *
+	 * The handle is not the week: what travels is a task id, and the text is only
+	 * carried so the drag means something to anything outside the board.
+	 */
+	private startDrag(row: HTMLElement, task: Task, event: DragEvent): void {
+		// Text typed into a row lives in the DOM until its editor blurs, and a
+		// drag does not blur it: the week has to hold that text before the row is
+		// taken out of the cell it was typed in.
+		this.syncFocusedEditor();
+		this.drag = { taskId: task.id };
+
+		const data = event.dataTransfer;
+		if (data) {
+			data.effectAllowed = 'move';
+			// The text as well as the id: dropped anywhere but a cell, a task is a
+			// line of text, and that is how anything else takes it.
+			data.setData('text/plain', task.text);
+			data.setData(DRAG_TYPE, task.id);
+		}
+
+		// After the browser has taken the picture it drags with: fading the row
+		// here and now would put the fade into that picture.
+		window.setTimeout(() => {
+			if (this.drag?.taskId === task.id) {
+				row.addClass('is-dragging');
+			}
+		}, 0);
+	}
+
+	/**
+	 * Makes the board a place a row can be put down in.
+	 *
+	 * One set of listeners for the whole board rather than one per cell, because
+	 * the pointer is resolved to a cell from where it is — which is also what lets
+	 * a drop land in the margin between two cells instead of falling through it.
+	 *
+	 * A drag that did not start on this board is left alone: it is a note's text
+	 * or a file being dragged, and turning one of those into a task is a
+	 * different question from moving a task, not yet asked.
+	 */
+	private addDropHandlers(): void {
+		const board = this.boardEl;
+		if (!board) {
+			return;
+		}
+
+		board.addEventListener('dragenter', (event) => this.trackDrop(event));
+		board.addEventListener('dragover', (event) => this.trackDrop(event));
+		board.addEventListener('dragleave', (event) => {
+			// `relatedTarget` is not dependable during a drag, so the question is
+			// put to the page instead: is the pointer still anywhere over the board?
+			const under = document.elementFromPoint(event.clientX, event.clientY);
+			if (!under || !board.contains(under)) {
+				this.clearDropAt();
+			}
+		});
+		board.addEventListener('drop', (event) => {
+			const drag = this.drag;
+			if (!drag) {
+				return;
+			}
+			// Without this the browser treats the drop as a page drop and the row
+			// springs back to where it came from.
+			event.preventDefault();
+			event.stopPropagation();
+
+			// Read before the drag is cleared: where the row was going is the
+			// whole of what the drop has to say.
+			const at = this.dropAt;
+			this.endDrag();
+			if (!at) {
+				return;
+			}
+			if (
+				moveTaskToCell(this.requireSchedule(), drag.taskId, at.dayId, at.slotId, at.beforeTaskId)
+			) {
+				this.renderBoard(this.requireSchedule());
+				this.save();
+			}
+		});
+	}
+
+	/**
+	 * Keeps the marked drop target under the pointer as the row is carried.
+	 *
+	 * Called for both `dragenter` and `dragover` because the browser asks
+	 * `dragover` on every move and `dragenter` on every crossing, and the mark has
+	 * to be right after either.
+	 */
+	private trackDrop(event: DragEvent): void {
+		const data = event.dataTransfer;
+		if (this.drag === null || !data || !data.types.includes(DRAG_TYPE)) {
+			return;
+		}
+
+		const column = columnOf(event.target);
+		const dayId = column?.dataset.dayId as DayId | undefined;
+		if (!column || !dayId) {
+			this.clearDropAt();
+			return;
+		}
+
+		// A drop is only allowed where the default has been refused, so this is
+		// also what makes the board a target at all rather than the row springing
+		// back to the cell it came from.
+		event.preventDefault();
+		event.stopPropagation();
+		data.dropEffect = 'move';
+
+		const cells = Array.from(column.querySelectorAll<HTMLElement>('.weekly-schedule-cell'));
+		const cellIndex = cellIndexAt(cells.map(boxOf), event.clientY);
+		const cell = cellIndex === null ? null : (cells[cellIndex] ?? null);
+		const slotId = cell?.dataset.slotId;
+		if (!cell || !slotId) {
+			this.clearDropAt();
+			return;
+		}
+
+		const rows = Array.from(cell.querySelectorAll<HTMLElement>('.weekly-schedule-task'));
+		const before = dropIndexBefore(rows.map(boxOf), event.clientY);
+		this.showDropAt(dayId, slotId, rows[before] ?? null, cell);
+	}
+
+	/**
+	 * Marks the cell the row would land in, and draws the line it would land on.
+	 *
+	 * Redrawn only when the place changes: `dragover` fires on every pointer move,
+	 * and rebuilding the line that often would be a flicker on the way past.
+	 */
+	private showDropAt(
+		dayId: DayId,
+		slotId: string,
+		row: HTMLElement | null,
+		cell: HTMLElement,
+	): void {
+		const beforeTaskId = row?.dataset.taskId ?? null;
+		const at = this.dropAt;
+		if (at && at.cell === cell && at.beforeTaskId === beforeTaskId) {
+			return;
+		}
+		this.clearDropAt();
+
+		cell.addClass('is-drop-target');
+
+		// The line lives in the cell's list and is placed against it, so it sits
+		// in the gap between two rows without moving either of them.
+		const list = cell.querySelector<HTMLElement>('.weekly-schedule-list');
+		let line: HTMLElement | null = null;
+		if (list) {
+			line = list.createDiv({ cls: 'weekly-schedule-drop-line' });
+			const listTop = list.getBoundingClientRect().top;
+			const top = row
+				? row.getBoundingClientRect().top - listTop
+				: list.getBoundingClientRect().height;
+			line.style.top = `${top}px`;
+		}
+
+		this.dropAt = { dayId, slotId, beforeTaskId, cell, line };
+	}
+
+	/** Takes the mark off the cell, and the line out of the list. */
+	private clearDropAt(): void {
+		const at = this.dropAt;
+		if (!at) {
+			return;
+		}
+		at.cell.removeClass('is-drop-target');
+		at.line?.remove();
+		this.dropAt = null;
+	}
+
+	/**
+	 * Ends a drag wherever it is: the row loses its faded look, the cell loses its
+	 * mark, and nothing is left for the next drag to inherit.
+	 *
+	 * Called from the drop as well as from `dragend`, because a drop redraws the
+	 * board: the row that was dragged is gone by then, and `dragend` — which is
+	 * dispatched to that row — never arrives.
+	 */
+	private endDrag(): void {
+		this.drag = null;
+		this.clearDropAt();
+		this.contentEl
+			.querySelectorAll('.weekly-schedule-task.is-dragging')
+			.forEach((row) => row.removeClass('is-dragging'));
 	}
 
 	/**
@@ -1346,4 +1614,17 @@ export class WeeklyScheduleView extends ItemView {
 			}
 		}
 	}
+}
+
+/** The day column an event happened over, if it happened over one. */
+function columnOf(target: EventTarget | null): HTMLElement | null {
+	return target instanceof HTMLElement
+		? target.closest<HTMLElement>('.weekly-schedule-day')
+		: null;
+}
+
+/** An element's box, in the terms a drop position is measured in. */
+function boxOf(element: HTMLElement): { top: number; height: number } {
+	const rect = element.getBoundingClientRect();
+	return { top: rect.top, height: rect.height };
 }

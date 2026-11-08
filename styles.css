@@ -445,12 +445,14 @@ button.weekly-schedule-day-carry:focus-visible {
 /* ---------- Tasks ---------- */
 
 .weekly-schedule-list {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	margin-top: 5px;
 }
 
 .weekly-schedule-task {
+	position: relative;
 	display: flex;
 	align-items: flex-start;
 	gap: 7px;
@@ -622,6 +624,80 @@ button.weekly-schedule-day-carry:focus-visible {
 .weekly-schedule-row-button svg {
 	width: 12px;
 	height: 12px;
+}
+
+/* ---------- Dragging a task ---------- */
+
+/* The handle a row is picked up by, drawn in the cell's gutter.
+   Out of the row's flow on purpose: a day's column is as narrow as 232px, and a
+   handle that took width would take it from the task text in every row of every
+   week. `left` is measured from the row's padding box, so -10px puts it exactly
+   on the padding the cell leaves beside its list — the strip between the colour
+   rail and the checkbox, which is where a pointer looking for a grip lands. */
+.weekly-schedule-grip {
+	position: absolute;
+	left: -10px;
+	top: 5px;
+	bottom: 5px;
+	width: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-faint);
+	opacity: 0;
+	cursor: grab;
+	transition: opacity 120ms ease;
+}
+
+.weekly-schedule-grip svg {
+	width: 10px;
+	height: 11px;
+}
+
+/* Shown under the pointer, like the row's own controls: a board of 28 cells
+   wearing 28 handles at once would read as a page of toolbars. Faint, because
+   the handle is not a thing to read — but not as faint as the row's buttons,
+   which appear beside a row the pointer is already on: this one is the only
+   sign that a row can be picked up at all. */
+.weekly-schedule-task:hover .weekly-schedule-grip,
+.weekly-schedule-task.is-dragging .weekly-schedule-grip {
+	opacity: 0.75;
+}
+
+.weekly-schedule-task .weekly-schedule-grip:hover {
+	opacity: 1;
+}
+
+.weekly-schedule-grip:active {
+	cursor: grabbing;
+}
+
+/* The row being carried stays where it was, faded: the line under the pointer is
+   then read as the row's new place rather than as a second row. */
+.weekly-schedule-task.is-dragging {
+	opacity: 0.4;
+}
+
+/* The cell the row would land in. A tint rather than an outline: every cell
+   already carries its own colour rail, and a second edge around it would read as
+   the cell being selected. */
+.weekly-schedule-cell.is-drop-target {
+	background-color: var(--background-modifier-hover);
+	border-radius: 4px;
+}
+
+/* Where the row would land, drawn in the target cell's own colour. Absolute so
+   the line sits in the gap between two rows without moving either of them — a
+   reflow on every pointer move would make the list twitch under the drag. */
+.weekly-schedule-drop-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 2px;
+	margin-top: -1px;
+	border-radius: 1px;
+	background-color: var(--ws-accent, var(--interactive-accent));
+	pointer-events: none;
 }
 
 /* ---------- Add task ---------- */

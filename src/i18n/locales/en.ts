@@ -93,6 +93,10 @@ export const en = {
 	'board.moveUp': 'Move up',
 	'board.moveDown': 'Move down',
 	'board.delete': 'Delete',
+	// The handle in a row's gutter. A line of text does not look like something
+	// that can be picked up, so the hint is what says it can — and the handle is
+	// the only place on the row that starts a drag rather than a selection.
+	'board.dragTask': 'Drag to another day or cell',
 	'board.weekLabel': 'Week {week} of {year} · {range}',
 
 	// Week totals, in the strip below the board.

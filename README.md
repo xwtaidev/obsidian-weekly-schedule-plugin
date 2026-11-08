@@ -19,6 +19,14 @@ the two keystrokes commits is yours to choose in **Settings → Weekly schedule*
 Committing opens the next task, and `Cmd`/`Ctrl`+`Enter` commits and stops there
 — whichever way round the setting is set.
 
+Work moves between cells, and between days, by dragging it: the handle that shows
+in a row's gutter under the pointer picks the row up, and a line under the pointer
+says where it will land among the tasks already there. Nothing else on a row
+starts a drag — the text keeps the pointer for selecting, and the row's own
+buttons for moving and dropping it. A task dropped where it already sits changes
+nothing, and one carried from last week keeps its mark: the mark says where the
+task came from, not where it is now.
+
 Below the board, a status strip keeps the week's own totals in sight — **12 tasks
 this week · 5 done · 42% complete** — counted from the board as you edit it, and
 pinned to the bottom of the pane so a week long enough to scroll does not take its
@@ -273,6 +281,7 @@ npm run check:i18n # verify the localization and file-heading rules
 npm run check:carry # verify the rules for carrying last week's work over
 npm run check:slots # verify the rules for the cells a day has
 npm run check:store # verify that an edit reaches its file
+npm run check:board # verify where a dropped row lands, and what a move leaves behind
 npm run check:e2e   # verify the whole change-of-cells sequence, plugin and views real
 npm run deploy -- "<Vault>"   # build output into a vault, with verification
 ```
@@ -345,6 +354,7 @@ src/
   settings.ts                    # Settings interface, defaults, settings tab
   store.ts                       # Reading/writing week files, caching, debounced saves
   markdown.ts                    # Markdown <-> board conversion
+  board.ts                       # Moving a task between cells, and where a drop lands
   slots.ts                       # The cells a day has, and where a removed one's work went
   migrate.ts                     # Moving week files into year folders, and aligning cell headings
   carry-over.ts                  # Carrying unfinished work over: last week's, and yesterday's
@@ -373,6 +383,7 @@ scripts/
   carry-check/                   # The npm run check:carry helper
   slot-check/                    # The npm run check:slots helper
   store-check/                   # The npm run check:store helper
+  board-check/                   # The npm run check:board helper
   e2e-check/                     # The npm run check:e2e helper
   diagnose-year-view.js          # Console snippet for troubleshooting layout
 ```
