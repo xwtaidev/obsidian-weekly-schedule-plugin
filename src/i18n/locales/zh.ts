@@ -10,6 +10,7 @@ export const zh: Translations = {
 	'command.nextWeek': '下一周',
 	'command.carryOver': '把上周未完成的带入本周',
 	'command.carryOverDay': '把昨天未完成的带入今天',
+	'command.quickAdd': '添加待办事项到本周',
 	'view.board': '周计划',
 	'view.year': '周计划：年度',
 
@@ -172,6 +173,16 @@ export const zh: Translations = {
 	'carry.dayResult': '周计划：已把 {from} 的 {count} 项未完成移入 {to}。',
 	'carry.dayResultSkipped': '周计划：已把 {from} 的 {count} 项未完成移入 {to}，另有 {skipped} 项已在其中。',
 	'carry.dayFailed': '周计划：写入失败，本次没有移动。详见开发者控制台。',
+
+	// 不开看板也能记一条。命令就是这件事的全部：一个值得规划的想法出现时，
+	// 眼前开的往往不是看板；它落进的是今天所在的那一周 —— 正在过的这一周，
+	// 与看板恰好开着哪一周无关。
+	'quick.title': '添加待办事项到本周',
+	'quick.day': '星期',
+	'quick.cell': '格子',
+	'quick.add': '添加',
+	'quick.added': '周计划：已添加到 {day} 的 {slot}。',
+	'quick.failed': '周计划：周文件写不进去，待办没有加上。详见开发者控制台。',
 
 	'list.separator': '、',
 };

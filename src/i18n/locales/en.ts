@@ -18,6 +18,7 @@ export const en = {
 	'command.nextWeek': 'Go to the next week',
 	'command.carryOver': 'Bring unfinished tasks from the previous week into this week',
 	'command.carryOverDay': "Bring yesterday's unfinished tasks into today",
+	'command.quickAdd': 'Add a task to this week',
 	'view.board': 'Weekly schedule',
 	'view.year': 'Weekly schedule: year',
 
@@ -272,6 +273,18 @@ export const en = {
 		'Weekly schedule: moved {count} task from {from} into {to}, leaving {skipped} already there.|Weekly schedule: moved {count} tasks from {from} into {to}, leaving {skipped} already there.',
 	'carry.dayFailed':
 		'Weekly schedule: nothing was moved, as the day could not be written. See the developer console.',
+
+	// Adding a task without going to the board. The command is the whole
+	// point: a thought worth planning arrives while the board is not the thing
+	// being looked at, and the week it lands in is today's — the week being
+	// lived, whatever a board happens to show.
+	'quick.title': 'Add a task to this week',
+	'quick.day': 'Day',
+	'quick.cell': 'Cell',
+	'quick.add': 'Add',
+	'quick.added': 'Weekly schedule: added to {day} · {slot}.',
+	'quick.failed':
+		'Weekly schedule: the task could not be added, as the week could not be written. See the developer console.',
 
 	'list.separator': ', ',
 };

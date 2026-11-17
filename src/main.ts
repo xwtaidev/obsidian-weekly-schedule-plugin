@@ -5,7 +5,7 @@ import {
 	VIEW_TYPE_WEEKLY_SCHEDULE,
 	VIEW_TYPE_WEEKLY_SCHEDULE_YEAR,
 } from './constants';
-import { getLocale, getLocaleRevision, syncLocale, t, tp } from './i18n';
+import { dayLabel, getLocale, getLocaleRevision, syncLocale, t, tp } from './i18n';
 import { WeeklyScheduleSettingTab, normalizeSettings } from './settings';
 import {
 	applySlotAlignment,
@@ -25,8 +25,10 @@ import {
 	previousDayId,
 } from './carry-over';
 import { ScheduleStore } from './store';
-import { DEFAULT_SLOT_LAYOUT, buildSlotLayout } from './slots';
+import { addTaskToCell } from './quick-capture';
+import { DEFAULT_SLOT_LAYOUT, buildSlotLayout, slotHeading } from './slots';
 import { CarryOverModal } from './ui/carry-over-modal';
+import { QuickCaptureModal } from './ui/quick-capture-modal';
 import { SlotAlignModal } from './ui/slot-align-modal';
 import { WeeklyScheduleView } from './ui/weekly-schedule-view';
 import { YEAR_VIEW_ICON, WeeklyScheduleYearView } from './ui/weekly-schedule-year-view';
@@ -40,7 +42,7 @@ import type { TranslationKey } from './i18n';
 import type { WeeklyScheduleSettings } from './settings';
 import type { Moment } from './utils/date';
 import type { SlotLayout } from './slots';
-import type { RetiredHeadings, RetiredSlots, Slot } from './types';
+import type { DayId, QuadrantId, RetiredHeadings, RetiredSlots, Slot } from './types';
 
 /**
  * Redraws a view's tab title after a language change.
@@ -130,6 +132,8 @@ export default class WeeklySchedulePlugin extends Plugin {
 		this.addLocalizedCommand('carry-over-yesterday', 'command.carryOverDay', () =>
 			void this.carryOverFromYesterday(),
 		);
+
+		this.addLocalizedCommand('add-task', 'command.quickAdd', () => this.quickAddTask());
 
 		this.settingTab = new WeeklyScheduleSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
@@ -520,6 +524,82 @@ export default class WeeklySchedulePlugin extends Plugin {
 	get activeBoardPath(): string | null {
 		const view = this.viewOf();
 		return view ? weekFilePath(this.settings.folder, this.momentOf(view.currentWeekStart)) : null;
+	}
+
+	/**
+	 * Opens the dialog that adds a task to this week without the board.
+	 *
+	 * The dialog is the whole feature: a thought worth planning arrives while
+	 * the board is not the thing being looked at, and opening it — finding the
+	 * day, finding the cell, starting the first line — is a walk that costs
+	 * more than the thought. The day preselected is the one today falls in,
+	 * and the week a task lands in is decided when it is submitted, so a
+	 * dialog left open across midnight keeps adding to the week today falls
+	 * in rather than to yesterday's.
+	 *
+	 * The week is today's rather than the board's for the same reason the
+	 * daily move's is: "this week" is the week being lived, and a board that
+	 * happens to show another week has no claim on a task added from a dialog
+	 * that names this one.
+	 */
+	quickAddTask(): void {
+		new QuickCaptureModal(
+			this.app,
+			{ layout: this.slotLayout(), defaultDay: dayIdOf(moment()) },
+			(day, slot, text) => this.applyQuickAdd(day, slot, text),
+		).open();
+	}
+
+	/**
+	 * Writes one quick-captured task into this week.
+	 *
+	 * The board is committed before the week is read — today's text lives in
+	 * the DOM until the editor blurs, and the week is read from memory — and
+	 * reloaded afterwards when the week it holds is the one that changed,
+	 * which is the one case where the plugin rewrote the very week a board is
+	 * drawing. On a write that fails the change is taken back rather than
+	 * left as work no file holds, and the dialog keeps the text it was given.
+	 */
+	private async applyQuickAdd(
+		day: DayId,
+		slot: QuadrantId,
+		text: string,
+	): Promise<boolean> {
+		const view = this.viewOf();
+		await view?.commitPendingEdits();
+
+		const weekStart = dateKey(startOfWeek(moment(), this.settings.weekStartsOn));
+		const path = this.pathForWeek(this.momentOf(weekStart));
+
+		const schedule = await this.store.load(weekStart, path);
+		if (!addTaskToCell(schedule, day, slot, text)) {
+			return false;
+		}
+
+		if (!(await this.store.flush(path))) {
+			// The file could not be written. Take the change back rather than
+			// leave a board showing work that no file holds.
+			this.store.forget(path);
+			if (view && view.activePath === path) {
+				await view.reloadWeek();
+			}
+			new Notice(t('quick.failed'));
+			return false;
+		}
+
+		if (view && view.activePath === path) {
+			await view.reloadWeek();
+		}
+
+		// The notice names where the task landed in the words the board uses,
+		// because the board may not be open to point at.
+		new Notice(
+			t('quick.added', {
+				day: dayLabel(day),
+				slot: slotHeading(this.slotLayout(), slot, getLocale()),
+			}),
+		);
+		return true;
 	}
 
 	private momentOf(weekStart: string): Moment {

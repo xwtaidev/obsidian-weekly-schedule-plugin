@@ -11,11 +11,12 @@ leaves over — nine members, a full 3x3.
 */
 
 /*
-The palette is declared on the three scopes that draw a cell in colour: the
-board, the carry-over dialog whose tag names the cell a task will land in, and
-the list of cells on the settings tab. It is deliberately not on `:root` —
-another plugin's `--ws-*` would collide with it — so a new surface that colours
-a cell has to be added here.
+The palette is declared on the four scopes that draw a cell in colour: the
+board, the carry-over dialog whose tag names the cell a task will land in, the
+quick-capture dialog whose chips do the same, and the list of cells on the
+settings tab. It is deliberately not on `:root` — another plugin's `--ws-*`
+would collide with it — so a new surface that colours a cell has to be added
+here.
 
 Eight tones, because that is how many cells a layout may hold. The first four
 are the four quadrants the plugin shipped with, unchanged to the byte: a vault
@@ -31,6 +32,7 @@ against #1e1e1e, where Obsidian's own `--background-primary` sits in each.
 */
 .weekly-schedule-container,
 .weekly-schedule-carry-modal,
+.weekly-schedule-quick-modal,
 .weekly-schedule-slot-list {
 	--ws-tone-0-rail: #b6575f;
 	--ws-tone-1-rail: #8a6dbb;
@@ -71,6 +73,7 @@ against #1e1e1e, where Obsidian's own `--background-primary` sits in each.
    rails are the hues themselves, as they are in light theme. */
 .theme-dark .weekly-schedule-container,
 .theme-dark .weekly-schedule-carry-modal,
+.theme-dark .weekly-schedule-quick-modal,
 .theme-dark .weekly-schedule-slot-list {
 	--ws-tone-0-label: #c06e75;
 	--ws-tone-1-label: #9378c0;
@@ -1394,6 +1397,87 @@ button.weekly-schedule-review-header:focus-visible {
 	margin-top: 16px;
 	font-size: 11px;
 	color: var(--text-muted);
+}
+
+/* ---------- Quick capture dialog ---------- */
+
+/* The same plainness as the carry-over dialog: a field, two rows of chips and
+   two buttons, nothing that competes with the thought being typed. Narrower,
+   because it holds a line of text rather than a week of them. */
+.weekly-schedule-quick-modal {
+	width: 420px;
+	max-width: 90vw;
+}
+
+.weekly-schedule-quick-input {
+	width: 100%;
+	margin-bottom: 12px;
+}
+
+.weekly-schedule-quick-group {
+	margin-bottom: 10px;
+}
+
+.weekly-schedule-quick-label {
+	margin-bottom: 4px;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.weekly-schedule-quick-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+
+/* Scoped with the element name: Obsidian's `button:not(.clickable-icon)` gives
+   a chip a fill and an input shadow that outweigh a bare class. */
+button.weekly-schedule-quick-chip {
+	display: inline-flex;
+	align-items: center;
+	height: 24px;
+	padding: 0 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: transparent;
+	box-shadow: none;
+	font-size: 12px;
+	/* A chip is quiet until it is chosen: the selection says where the task
+	   will go, and a row of loud chips would say it eight times. */
+	color: var(--text-muted);
+	cursor: pointer;
+	transition:
+		border-color 120ms ease,
+		color 120ms ease,
+		background-color 120ms ease;
+}
+
+/* Selection is the accent ring for every chip, and the colour it already
+   wears: the two rules are split by chip rather than stacked on one, so a
+   cell's colour does not have to be won back from a hover or a selection
+   after the fact. */
+button.weekly-schedule-quick-chip:hover {
+	border-color: var(--background-modifier-border-hover);
+	background: var(--background-modifier-hover);
+}
+
+button.weekly-schedule-quick-chip.is-selected {
+	border-color: var(--interactive-accent);
+}
+
+button.weekly-schedule-quick-day:hover,
+button.weekly-schedule-quick-day.is-selected {
+	color: var(--text-normal);
+}
+
+/* A cell's chip is that cell's own colour — the same words the board draws
+   over the cell, read from the same tone class the carry-over tag uses, so the
+   chip needs no reading to say which cell it is. The tone class supplies
+   `--ws-accent` and `--ws-accent-label`, from the palette scope at the top of
+   this file. */
+button.weekly-schedule-quick-slot {
+	color: var(--ws-accent-label);
+	font-weight: 600;
 }
 
 /* ---------- The dialog where a colour is picked ---------- */

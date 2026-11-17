@@ -155,6 +155,21 @@ is in: on a Monday, yesterday is the previous week's Sunday, and nothing happens
 but a notice saying so — use the weekly move for that. The week moved within is the
 one today falls in, whatever week the board is showing.
 
+## Adding a task from anywhere
+
+A thought worth planning does not wait for the board to be open. **Add a task to
+this week** — from the command palette — opens a small dialog: the text, the
+day, the cell, added. Enter adds the task and clears the field, so capturing
+three things is one visit rather than three; `Esc` or the button ends it. The
+day starts on today's and the cell on the first of yours, and both keep their
+selection between tasks, since a run of thoughts usually belongs to the same
+corner of the week.
+
+The week a task lands in is today's, whatever week a board happens to show —
+"this week" is the week being lived, the same rule the daily move follows. A
+notice names the day and the cell the task went to, because the board may not
+be open to point at; a task that could not be written stays in the field.
+
 ## Cells you choose
 
 Four quadrants are one way to divide a day, and a costly one to keep: deciding which
