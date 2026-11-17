@@ -223,7 +223,7 @@ export class WeeklyScheduleYearView extends ItemView {
 
 		meta.setText(`${cell.stats.percent ?? 0}%`);
 		const inner = tile.querySelector<HTMLElement>('.weekly-schedule-year-inner');
-		if (this.isPastWeek(cell) && inner) {
+		if (this.hasHeat(cell) && inner) {
 			const step = heatStep(cell.stats.percent);
 			inner.dataset.heat = String(step);
 			tile.style.setProperty('--ws-heat-current', `var(--ws-heat-${step})`);
@@ -361,11 +361,13 @@ export class WeeklyScheduleYearView extends ItemView {
 			if (cell.stats.total === 0) {
 				meta.setText('—');
 			} else {
-				meta.setText(`${cell.stats.percent ?? 0}%`);
-				tile.setAttribute('aria-label', this.tileLabel(cell));
-				// Fill depth carries completion. Only finished weeks are filled:
-				// a week that has not happened yet has no completion to show.
-				if (this.isPastWeek(cell)) {
+			meta.setText(`${cell.stats.percent ?? 0}%`);
+			tile.setAttribute('aria-label', this.tileLabel(cell));
+			// Fill depth carries completion. Finished weeks and the current one
+			// are filled — the current week is the one being lived, and its
+			// rate is the one worth watching. Future weeks stay unfilled: a
+			// week that has not happened yet has no completion to show.
+			if (this.hasHeat(cell)) {
 					const step = heatStep(cell.stats.percent);
 					inner.dataset.heat = String(step);
 					tile.style.setProperty('--ws-heat-current', `var(--ws-heat-${step})`);
@@ -441,6 +443,18 @@ export class WeeklyScheduleYearView extends ItemView {
 	/** Whether a week has finished, i.e. it is not the current or a future week. */
 	private isPastWeek(cell: WeekCell): boolean {
 		return dateKey(cell.start) < this.currentWeekStart();
+	}
+
+	/**
+	 * Whether a week's tile carries a completion fill.
+	 *
+	 * The finished weeks and the current one: the current week is the one being
+	 * lived, so its progress is shown even though the number it will end on is
+	 * still being written. Only future weeks stay unfilled — a week that has
+	 * not happened has no completion to show.
+	 */
+	private hasHeat(cell: WeekCell): boolean {
+		return dateKey(cell.start) <= this.currentWeekStart();
 	}
 
 	private addIconButton(

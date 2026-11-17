@@ -97,9 +97,11 @@ that week; `←` `→` `↑` `↓` move between tiles and `Enter` opens one.
 
 ![The year overview: 53 week tiles shaded by completion rate](assets/year-light.png)
 
-Fill depth is the completion rate, in six steps. Finished weeks are filled, weeks
-still to come are not, and weeks with no tasks show a dash. The year overview is a
-separate pane, so it can stay open beside the board while you work.
+Fill depth is the completion rate, in six steps, shaded with your theme's
+accent colour. Finished weeks and the current one are filled — the current
+week is the one being lived — while weeks still to come are not, and weeks
+with no tasks show a dash. The year overview is a separate pane, so it can
+stay open beside the board while you work.
 
 ## Starting from last week
 

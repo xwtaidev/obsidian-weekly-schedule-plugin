@@ -1042,24 +1042,21 @@ button.weekly-schedule-review-header:focus-visible {
 	--ws-heat-ink-strong: #fff;
 }
 
-/* The light theme's accent is too pale to carry white text at full fill, so its
-   top tiers use a deeper shade of the same hue. */
+/* The light theme follows the vault's accent the same way the dark theme
+   does — the tiles answer the theme, not a colour of our own choosing. The
+   one difference is the top of the ramp: a light pane does not darken a
+   translucent fill the way a dark one does, and an accent at full strength
+   is generally too pale to carry the white ink those tiers use, so the two
+   deepest steps mix the accent toward black instead — same hue, deep enough
+   for the white text. A very pale accent (a yellow, say) can still fall
+   short there; the dark theme has the same limit with such accents, and
+   following the vault's choice is worth more than pinning a colour the
+   vault did not choose. */
 .theme-light .weekly-schedule-year-container {
-	--ws-heat-0: color-mix(in srgb, #4a3fc4 10%, transparent);
-	--ws-heat-1: color-mix(in srgb, #4a3fc4 22%, transparent);
-	--ws-heat-2: color-mix(in srgb, #4a3fc4 34%, transparent);
-	--ws-heat-3: color-mix(in srgb, #4a3fc4 46%, transparent);
-	--ws-heat-4: color-mix(in srgb, #4a3fc4 82%, transparent);
-	--ws-heat-5: color-mix(in srgb, #4a3fc4 92%, transparent);
-	/* Deeper than the dark theme's hover steps, because most light-theme tiers use
-	   dark text: past about 56% that text no longer clears 4.5:1. The cap is fine
-	   here because the light ramp starts from a darker fill. */
-	--ws-heat-hover-0: color-mix(in srgb, #4a3fc4 26%, transparent);
-	--ws-heat-hover-1: color-mix(in srgb, #4a3fc4 38%, transparent);
-	--ws-heat-hover-2: color-mix(in srgb, #4a3fc4 50%, transparent);
-	--ws-heat-hover-3: color-mix(in srgb, #4a3fc4 54%, transparent);
-	--ws-heat-hover-4: color-mix(in srgb, #4a3fc4 94%, transparent);
-	--ws-heat-hover-5: color-mix(in srgb, #4a3fc4 100%, transparent);
+	--ws-heat-4: color-mix(in srgb, var(--interactive-accent) 65%, #000);
+	--ws-heat-5: color-mix(in srgb, var(--interactive-accent) 78%, #000);
+	--ws-heat-hover-4: color-mix(in srgb, var(--interactive-accent) 70%, #000);
+	--ws-heat-hover-5: color-mix(in srgb, var(--interactive-accent) 83%, #000);
 }
 
 .weekly-schedule-year-grid {
